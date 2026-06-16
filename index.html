@@ -1,0 +1,3411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hoshikuzu</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!-- Adsgram rewarded-реклама (ads.md): грузится рядом с TG SDK. Вне Telegram молча
+     недоступен — 🎬-точки деградируют к тест-выдаче (см. showAd в скрипте) -->
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(130% 70% at 50% -8%, #4a2473 0%, #2a1450 38%, #150a2e 70%, #0a0420 100%) fixed,
+      #0a0420;
+    color: #efe7ff;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center;
+    user-select: none; -webkit-user-select: none; overflow: hidden;
+  }
+  /* статичное звёздное небо + мягкое сияние по углам (рисуется кодом, без ассетов) */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      radial-gradient(1.6px 1.6px at 12% 16%, #fff, transparent),
+      radial-gradient(1.3px 1.3px at 28% 9%, #ffe9ff, transparent),
+      radial-gradient(1.5px 1.5px at 46% 21%, #fff, transparent),
+      radial-gradient(1.2px 1.2px at 64% 11%, #d8c4ff, transparent),
+      radial-gradient(1.7px 1.7px at 82% 18%, #fff, transparent),
+      radial-gradient(1.3px 1.3px at 92% 7%, #ffe9ff, transparent),
+      radial-gradient(1.4px 1.4px at 8% 44%, #fff, transparent),
+      radial-gradient(1.2px 1.2px at 90% 40%, #d8c4ff, transparent),
+      radial-gradient(1.5px 1.5px at 18% 70%, #fff, transparent),
+      radial-gradient(1.3px 1.3px at 70% 78%, #ffe9ff, transparent),
+      radial-gradient(1.6px 1.6px at 40% 88%, #fff, transparent),
+      radial-gradient(1.2px 1.2px at 86% 92%, #d8c4ff, transparent),
+      radial-gradient(60% 40% at 0% 0%, rgba(214,118,196,.18), transparent 60%),
+      radial-gradient(60% 40% at 100% 0%, rgba(150,90,230,.18), transparent 60%),
+      radial-gradient(70% 35% at 50% 100%, rgba(214,118,196,.14), transparent 60%);
+    opacity: .9;
+  }
+  #app {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 440px; height: 100%;
+    display: flex; flex-direction: column; gap: 10px; padding: 10px;
+  }
+  #app.shake { animation: shake .4s; }
+  @keyframes shake {
+    0%,100% { transform: translate(0,0); } 20% { transform: translate(-6px,3px); }
+    40% { transform: translate(5px,-4px); } 60% { transform: translate(-4px,2px); }
+    80% { transform: translate(3px,-2px); }
+  }
+
+  /* ── header ── */
+  header { display: flex; gap: 10px; align-items: stretch; }
+  #mascot {
+    width: 92px; flex: none; display: flex; flex-direction: column;
+    align-items: center; gap: 4px;
+  }
+  #mface {
+    width: 64px; height: 64px; border-radius: 18px;
+    background: radial-gradient(circle at 35% 28%, #6a3aa0, #361b5c 70%, #241040);
+    border: 2px solid rgba(255,255,255,.18);
+    box-shadow: 0 4px 14px rgba(0,0,0,.5), 0 0 18px rgba(180,110,230,.45),
+      inset 0 2px 4px rgba(255,255,255,.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 38px; transition: transform .2s;
+  }
+  #mface.pop { transform: scale(1.25) rotate(-6deg); }
+  #bubble {
+    font-size: 10.5px; line-height: 1.25; text-align: center; color: #e7d8ff;
+    background: linear-gradient(#3a2160, #2a1648); border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: inset 0 1px 2px rgba(255,255,255,.12), 0 3px 8px rgba(0,0,0,.4);
+    padding: 4px 6px; width: 100%;
+    /* высота ФИКСИРОВАНА (3 строки): длинная фраза не растит header —
+       иначе вся вёрстка съезжает вниз при смене реплики (баг 2026-06-12) */
+    height: 48px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #bars { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+  .bar {
+    position: relative; flex: 1; min-height: 26px; border-radius: 13px;
+    background: linear-gradient(#1c1030, #150b26); overflow: hidden;
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: inset 0 2px 5px rgba(0,0,0,.55), inset 0 1px 1px rgba(255,255,255,.06);
+  }
+  .bar .fill {
+    position: absolute; inset: 0; width: 0%;
+    transition: width .35s ease; border-radius: 13px;
+    box-shadow: inset 0 2px 3px rgba(255,255,255,.45), inset 0 -3px 6px rgba(0,0,0,.3);
+  }
+  .fill.c-spins { background: linear-gradient(#7ad4ff, #2f8fd0); }
+  .fill.c-harda { background: linear-gradient(#ff7d93, #d8344f); }
+  .fill.c-exp   { background: linear-gradient(#bff06a, #6cab2c); }
+  .bar .txt {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 9px 0 5px; font-size: 12px;
+    font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.55);
+    white-space: nowrap;
+  }
+  .bar .txt b { display: flex; align-items: center; gap: 7px; }
+  .bar .txt small { font-weight: 500; opacity: .9; }
+  .bar .txt .cur {
+    font-size: 15px; line-height: 1; width: 24px; height: 24px; flex: none;
+    display: flex; align-items: center; justify-content: center; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), rgba(0,0,0,.25));
+    box-shadow: 0 1px 3px rgba(0,0,0,.45), inset 0 1px 2px rgba(255,255,255,.3);
+  }
+  .bar.flash { animation: barflash .5s; }
+  @keyframes barflash { 0%,100% { box-shadow: none; } 50% { box-shadow: 0 0 0 3px #ff7d93; } }
+
+  /* ── middle: reels + lever ── */
+  #mid { display: flex; gap: 10px; align-items: stretch; }
+  #main { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  #board {
+    background: linear-gradient(160deg, #3c2369, #281548);
+    border-radius: 18px; padding: 14px;
+    display: flex; gap: 8px; position: relative; transition: transform .1s;
+    border: 2px solid rgba(255,207,90,.55);
+    box-shadow:
+      0 0 0 3px rgba(120,70,180,.45),
+      0 10px 28px rgba(0,0,0,.55),
+      0 0 32px rgba(170,110,230,.32),
+      inset 0 2px 5px rgba(255,255,255,.16);
+  }
+  .reel {
+    flex: 1; height: 170px; border-radius: 10px; overflow: hidden; position: relative;
+    background: linear-gradient(#d8cf9d, #f7efc8 30%, #f7efc8 70%, #d8cf9d);
+    box-shadow: inset 0 6px 12px rgba(0,0,0,.25), inset 0 -6px 12px rgba(0,0,0,.25),
+      0 0 0 2px rgba(255,207,90,.4);
+  }
+  .strip { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
+  .strip.blur { filter: blur(1.5px); }
+  .cell {
+    height: 78px; display: flex; align-items: center; justify-content: center;
+  }
+  .cell .sym { font-size: 50px; line-height: 1; pointer-events: none; }
+  /* бит выигрыша: одиночный взрывной поп → потом короткий пульс (НЕ бесконечный).
+     v13.6: пульс был `infinite` с `filter: drop-shadow` → вечный repaint трёх
+     эмодзи до след. спина (главный тормоз на бюджетных GPU, Redmi 10S). Теперь
+     3 пульса transform-only (компоновщик, без пейнта) — символ успокаивается. */
+  .cell.hit { animation: winpop .55s cubic-bezier(.2,1.4,.4,1), hitpulse .7s ease .55s 3; }
+  @keyframes hitpulse { 50% { transform: scale(1.2); } }
+  @keyframes winpop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.7); filter: drop-shadow(0 0 16px #ffd34d) brightness(1.6); }
+    100% { transform: scale(1); }
+  }
+  #board.goldflash { animation: goldflash .5s ease; }
+  @keyframes goldflash { 30% { box-shadow: 0 0 28px #ffd34d; } }
+  /* виньетка биг-вина: «мир остановился» на секунду */
+  .vignette {
+    position: fixed; inset: 0; z-index: 18; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.55) 100%);
+    animation: vfade 1s ease forwards;
+  }
+  @keyframes vfade { 0% { opacity: 0; } 25% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+  /* промах после прогрева: третий барабан «вздыхает» серым */
+  .reel.miss { animation: missflash .45s ease; }
+  @keyframes missflash { 40% { filter: grayscale(1) brightness(.55); } }
+  .reel.heat { animation: heatpulse .45s ease infinite; }
+  @keyframes heatpulse {
+    50% { box-shadow: 0 0 16px #ffd34d,
+      inset 0 6px 12px rgba(0,0,0,.25), inset 0 -6px 12px rgba(0,0,0,.25); }
+  }
+  #payline {
+    position: absolute; left: 6px; right: 6px; top: 50%; height: 78px;
+    transform: translateY(-50%); pointer-events: none;
+    border-top: 2px solid rgba(255,211,77,.55); border-bottom: 2px solid rgba(255,211,77,.55);
+    border-radius: 4px;
+  }
+  #winline {
+    height: 32px; display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 800; color: #ffd34d; position: relative;
+  }
+  .float {
+    position: absolute; font-weight: 800; pointer-events: none;
+    animation: floatup 1.2s ease forwards; white-space: nowrap;
+  }
+  @keyframes floatup { 0% { opacity: 0; transform: translate(-50%, 8px); }
+    20% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -34px); } }
+  /* крупный текст выигрыша поверх барабана (v13.5): «что и сколько» — часть VFX, изобильнее */
+  .bigwin {
+    position: fixed; pointer-events: none; z-index: 19;
+    font-weight: 900; white-space: nowrap; letter-spacing: .5px; text-align: center;
+    font-size: clamp(30px, 9vw, 52px);
+    text-shadow: 0 3px 0 rgba(0,0,0,.45), 0 0 24px currentColor;
+    -webkit-text-stroke: 1px rgba(0,0,0,.3);
+    animation: bigwinpop 1.4s cubic-bezier(.2,1.5,.35,1) forwards;
+  }
+  /* GFX_LOW: размытая тень (0 0 24px) + обводка крупного текста — дорогой пейнт; убираем */
+  .bigwin.lite { text-shadow: 0 2px 0 rgba(0,0,0,.55); -webkit-text-stroke: 0; }
+  @keyframes bigwinpop {
+    0%   { opacity: 0; transform: translate(-50%,-50%) scale(.3) rotate(-6deg); }
+    16%  { opacity: 1; transform: translate(-50%,-50%) scale(1.18) rotate(2deg); }
+    30%  { transform: translate(-50%,-50%) scale(1) rotate(0); }
+    70%  { opacity: 1; transform: translate(-50%,-62%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%,-130%) scale(.95); }
+  }
+
+  /* ── lever ── */
+  #rail {
+    width: 64px; flex: none; border-radius: 18px;
+    background: linear-gradient(160deg, #34215c, #1d1038);
+    border: 1px solid rgba(255,207,90,.35);
+    box-shadow: inset 0 2px 5px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.45),
+      inset 0 1px 1px rgba(255,255,255,.1);
+    position: relative; touch-action: none;
+  }
+  #railLbl {
+    position: absolute; top: 8px; left: 0; right: 0; text-align: center;
+    font-size: 10px; font-weight: 800; color: #c9a8ff; letter-spacing: .5px;
+  }
+  #railZone {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    top: 30px; bottom: 12px; width: 8px; border-radius: 4px;
+    background: linear-gradient(#120a24, #0c0618);
+    box-shadow: inset 0 0 4px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05);
+  }
+  #knob {
+    position: absolute; left: 50%; margin-left: -26px; top: 4px;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 28%, #ff9a8a, #e23b3b 58%, #9c2020);
+    box-shadow: 0 4px 12px rgba(0,0,0,.55), 0 0 16px rgba(255,90,90,.45),
+      inset 0 2px 5px rgba(255,255,255,.45), inset 0 -3px 6px rgba(0,0,0,.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; color: #fff6d8; text-shadow: 0 1px 2px rgba(0,0,0,.5);
+    cursor: grab; touch-action: none;
+  }
+  #knob.back { transition: top .25s cubic-bezier(.2,1.6,.4,1); }
+  #knob.off { filter: grayscale(1) brightness(.6); cursor: not-allowed; }
+
+  /* ── meta ── */
+  #meta {
+    background: linear-gradient(160deg, #2c1a4e, #1d1038);
+    border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 9px;
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: 0 6px 20px rgba(0,0,0,.4), inset 0 1px 1px rgba(255,255,255,.08);
+  }
+  #metaRow { display: flex; gap: 8px; }
+  .btn {
+    border: none; border-radius: 13px;
+    background: linear-gradient(#4a3a72, #33245a); color: #f0e7ff;
+    font-weight: 800; font-size: 13px; padding: 12px 6px; flex: 1; cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 3px 8px rgba(0,0,0,.4), inset 0 1px 1px rgba(255,255,255,.18);
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .btn:active { transform: scale(.97); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn.accent { background: linear-gradient(#ff6b86, #d8344f); color: #fff; }
+  /* магазин — золотой, коллекция — розовая */
+  #shopBtn { background: linear-gradient(#ffd86a, #f0a818); color: #3a2c06; text-shadow: 0 1px 0 rgba(255,255,255,.3); }
+  #collBtn { background: linear-gradient(#ff7ab8, #e8458f); color: #fff; }
+  /* ⚠️ ЗАФИКСИРОВАНО — НЕ МЕНЯТЬ без явного запроса автора (feel.md §10, «сейчас идеально»).
+     Перерождение/колеса/автоспин = 140px, metaRow/прокачка = 44px. Постоянно ломались — беречь. */
+  #rebirthBtn {
+    position: relative; overflow: hidden; background: linear-gradient(#3a2660, #261545); padding: 0; height: 140px;
+  }
+  #rebirthFill {
+    position: absolute; inset: 0; width: 0%; background: linear-gradient(90deg, #8fd14a, #5f9a2c);
+    transition: width .35s ease;
+  }
+  /* текст по центру через flex (line-height съезжал при длинной строке) */
+  #rebirthTxt {
+    position: relative; z-index: 1; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 8px; text-align: center;
+  }
+  #rebirthBtn.ready { animation: glow 1.2s ease infinite; }
+  #rebirthBtn.ready #rebirthFill { background: linear-gradient(90deg, #b6ee5e, #7ec23a); }
+  #rebirthBtn.ready #rebirthTxt { color: #1c2208; }
+  @keyframes glow { 50% { box-shadow: 0 0 14px #9fd64e; } }
+  /* кнопка прокачки = прогресс-бар покупок 0..5 (заливка как у перерождения) */
+  #upgBtn { position: relative; overflow: hidden; padding: 0; height: 44px; }
+  #upgFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, #ff6b86, #d8344f); transition: width .35s ease; }
+  #upgBtnTxt { position: relative; z-index: 1; line-height: 44px; }
+  /* автоспин и перерождение — одного размера (v14: ×2 выше, текст по центру) */
+  #autoBtn { height: 140px; padding: 0 6px; display: flex; align-items: center; justify-content: center; }
+  #autoBtn.on { background: linear-gradient(#6fcdf2, #2f8fd0); color: #062235; }
+  /* Колеса экспы (v14) — между перерождением и автоспином, золотисто-янтарная */
+  #wheelBtn {
+    height: 140px; padding: 0 8px; display: flex; flex-direction: column; gap: 4px;
+    align-items: center; justify-content: center; line-height: 1.25;
+    background: linear-gradient(135deg, #f0a830, #d4861a); color: #2a1d05; text-align: center;
+  }
+  #wheelBtn small { font-weight: 700; opacity: .9; font-size: 12px; }
+  /* Goals — вход в шкалу анлоков (progression.md), тёплый «карта-прогресс» градиент */
+  #trackBtn {
+    height: 140px; padding: 0 8px; display: flex; flex-direction: column; gap: 4px;
+    align-items: center; justify-content: center; line-height: 1.25;
+    background: linear-gradient(160deg, #6a4bc4, #2a1d5e); color: #efe9ff; text-align: center;
+  }
+  #trackBtn small { font-weight: 700; opacity: .85; font-size: 12px; color: #cdbff2; }
+
+  footer {
+    text-align: center; font-size: 10.5px; color: #9a86c0; padding-bottom: 4px;
+  }
+  footer a { color: #c9a8ff; }
+  #buildVer { margin-top: 2px; font-size: 9px; color: #6a5a8e; letter-spacing: .3px; }
+
+
+  /* ── Goals — полноэкранный оверлей: дейлики + шкала анлоков (progression.md) ── */
+  #trackOverlay { z-index: 12; }
+  #trackOverlay .trkWrap {
+    position: relative; width: 100%; height: 100%;
+    background: #0b0a16; overflow: hidden; display: flex; flex-direction: column;
+  }
+  .trkTop {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 12px 14px; background: #15122a; border-bottom: 1px solid #2a2350;
+  }
+  .trkTop h2 { margin: 0; font-size: 18px; color: #efe9ff; font-weight: 800; }
+  #trkClose {
+    flex: 0 0 auto; border: none; background: #ffffff1f;
+    color: #efe9ff; font-size: 15px; font-weight: 800;
+    padding: 10px 16px; border-radius: 12px; cursor: pointer; font-family: inherit;
+  }
+  #trkClose:active { transform: scale(.96); }
+  .trkScroll {
+    flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
+    padding: 12px 14px calc(18px + env(safe-area-inset-bottom));
+  }
+  .trkSec { font-size: 13px; font-weight: 800; color: #9a8fc8; letter-spacing: .4px; text-transform: uppercase; margin: 4px 2px 9px; }
+  /* дейли-карточка */
+  .trkDaily { background: #181430; border: 1px solid #2a2350; border-radius: 14px; padding: 11px 13px; margin-bottom: 9px; }
+  .trkDaily .d-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .trkDaily .d-name { font-size: 14px; font-weight: 700; color: #efe9ff; }
+  .trkDaily .d-rew { font-size: 12px; color: #cdbff2; font-weight: 700; flex: 0 0 auto; }
+  .trkBar { height: 8px; border-radius: 6px; background: #0c0a1a; overflow: hidden; margin-top: 8px; }
+  .trkBar > i { display: block; height: 100%; background: linear-gradient(90deg, #6a4bc4, #b18cff); }
+  .trkClaim {
+    margin-top: 9px; width: 100%; border: none; border-radius: 11px; cursor: pointer;
+    font-family: inherit; font-size: 14px; font-weight: 800; padding: 11px 10px; color: #fff; background: #4caf6e;
+  }
+  .trkClaim:disabled { background: #2a2740; color: #6f6a88; cursor: default; }
+  .trkClaim:active:not(:disabled) { transform: scale(.98); }
+  /* ступень шкалы */
+  .trkRung {
+    display: flex; align-items: center; gap: 11px;
+    background: #15122a; border: 1px solid #241e46; border-radius: 13px; padding: 11px 12px; margin-bottom: 8px;
+  }
+  .trkRung.cur { border-color: #b18cff; box-shadow: 0 0 0 1px #b18cff55; }
+  .trkRung.done { opacity: .5; }
+  .trkRung .r-ic { font-size: 22px; width: 30px; text-align: center; flex: 0 0 auto; }
+  .trkRung .r-body { flex: 1; min-width: 0; }
+  .trkRung .r-name { font-size: 14px; font-weight: 700; color: #efe9ff; }
+  .trkRung .r-sub { font-size: 11.5px; color: #9a8fc8; margin-top: 2px; }
+  .trkRung .r-state { font-size: 13px; font-weight: 800; flex: 0 0 auto; }
+  .trkRung.done .r-state { color: #6ad29a; }
+  .trkRung.cur .r-state { color: #b18cff; }
+  .trkRung.lock .r-state { color: #6f6a88; }
+  .trkAd {
+    width: 100%; border: none; border-radius: 12px; cursor: pointer; font-family: inherit;
+    font-size: 14px; font-weight: 800; padding: 12px 10px; color: #fff; margin-top: 2px; background: #e8556d;
+  }
+  .trkAd:disabled { background: #2a2740; color: #6f6a88; cursor: default; }
+  .trkAd:active:not(:disabled) { transform: scale(.98); }
+
+  /* ═══ DEV-ПАНЕЛЬ — УДАЛИТЬ ПЕРЕД РЕЛИЗОМ (этот CSS + блок #devPanel в разметке + обработчики в JS) ═══ */
+  #devPanel {
+    /* прикреплена к нижней границе экрана, отделена от основного UI (v11) */
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 9;
+    width: 100%; max-width: 440px;
+    display: flex; align-items: stretch; gap: 6px; padding: 6px;
+    border: 2px dashed #ffb300; border-radius: 8px 8px 0 0;
+    background: repeating-linear-gradient(45deg, #1a1607, #1a1607 8px, #221d05 8px, #221d05 16px);
+  }
+  #devPanel .devTag {
+    display: flex; align-items: center;
+    font: 700 10px/1 monospace; letter-spacing: 1px;
+    color: #1a1607; background: #ffb300; padding: 0 6px; border-radius: 3px;
+  }
+  #devPanel button {
+    flex: 1; padding: 7px 4px; cursor: pointer;
+    font: 600 11px monospace; color: #ffe08a;
+    background: #2a2308; border: 1px solid #ffb300; border-radius: 5px;
+  }
+  #devPanel button:active { transform: scale(.96); }
+  #devPanel #devWipe { color: #ff9a9a; border-color: #e8556d; background: #2a0d10; }
+  /* ═══ /DEV-ПАНЕЛЬ ═══ */
+
+  /* ── modal ── */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65); display: none;
+    align-items: center; justify-content: center; z-index: 10;
+  }
+  .overlay.show { display: flex; }
+  .sheet {
+    background: linear-gradient(160deg, #2c1a4e, #1d1038); border-radius: 18px; padding: 18px;
+    width: min(92%, 360px); display: flex; flex-direction: column; gap: 12px;
+    border: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 12px 40px rgba(0,0,0,.6), 0 0 30px rgba(150,90,230,.2);
+  }
+  .sheet h2 { font-size: 17px; color: #f3ecff; }
+  .sheet p { font-size: 13px; color: #c4b3e6; line-height: 1.45; }
+  .sheet .big { font-size: 15px; color: #f0e7ff; font-weight: 700; }
+
+  /* ── Колеса экспы (v14) — колесо ── */
+  #wheelWrap { position: relative; width: 248px; height: 248px; margin: 2px auto 4px; }
+  #wheel {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 6px solid #2a2308;
+    box-shadow: 0 0 0 4px #f0a830, 0 8px 22px rgba(0,0,0,.55);
+    transition: transform 4s cubic-bezier(.12,.66,.16,1);
+  }
+  #wheelPtr {
+    position: absolute; top: -6px; left: 50%; transform: translateX(-50%); z-index: 3;
+    width: 0; height: 0; border-left: 13px solid transparent; border-right: 13px solid transparent;
+    border-top: 24px solid #fff; filter: drop-shadow(0 2px 3px rgba(0,0,0,.7));
+  }
+  #wheelHub {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 56px; height: 56px; border-radius: 50%; z-index: 2;
+    background: #2a2308; color: #ffcf5a; border: 3px solid #f0a830;
+    display: flex; align-items: center; justify-content: center; font-size: 24px;
+  }
+  .wlabel { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  .wlabel span {
+    position: absolute; left: 0; top: 0; transform: translate(-50%,-50%);
+    font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6));
+  }
+  /* крупный текст результата поверх колеса (v14) */
+  .rltfx {
+    position: absolute; left: 50%; top: 50%; z-index: 4; pointer-events: none;
+    font-weight: 900; font-size: 26px; white-space: nowrap; color: #9fd64e;
+    text-shadow: 0 2px 6px #000, 0 0 10px rgba(0,0,0,.8);
+    animation: rltpop 1.5s ease-out forwards;
+  }
+  .rltfx.big { font-size: 34px; }
+  @keyframes rltpop {
+    0%   { transform: translate(-50%,-50%) scale(.3); opacity: 0; }
+    15%  { transform: translate(-50%,-50%) scale(1.15); opacity: 1; }
+    30%  { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+    70%  { opacity: 1; }
+    100% { transform: translate(-50%,-92%) scale(1); opacity: 0; }
+  }
+
+  /* слой VFX ПОД окнами (z-index 9 < overlay 10): эффекты выигрышных круток барабана
+     рендерятся сюда — над игрой, но под любыми модалками (v13). Гача/бонус-эффекты
+     по-прежнему идут в body (поверх своих окон) */
+  #fxUnder { position: fixed; inset: 0; pointer-events: none; z-index: 9; }
+  .confetti {
+    position: fixed; width: 10px; height: 10px; top: 30%; left: 50%; z-index: 105;
+    pointer-events: none; animation: conf 1.1s ease-out forwards;
+  }
+  @keyframes conf {
+    0% { transform: translate(0,0) rotate(0); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) rotate(540deg); opacity: 0; }
+  }
+
+  /* ── эмодзи-бёрст выигрыша ── */
+  .burst {
+    position: fixed; z-index: 45; pointer-events: none; opacity: 0;
+    animation: burstfly 1.25s cubic-bezier(.15,.65,.35,1) forwards;
+  }
+  @keyframes burstfly {
+    0%   { transform: translate(-50%,-50%) scale(.3) rotate(0); opacity: 0; }
+    12%  { opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+           scale(var(--sc)) rotate(var(--rot)); opacity: 0; }
+  }
+  .ring {
+    position: fixed; z-index: 44; width: 20px; height: 20px; margin: -10px 0 0 -10px;
+    border: 3px solid #ffd34d; border-radius: 50%; pointer-events: none;
+    animation: ringex .65s ease-out forwards;
+  }
+  @keyframes ringex { 0% { transform: scale(.4); opacity: .9; } 100% { transform: scale(9); opacity: 0; } }
+
+  /* ── гача ── */
+  .sheet.scroll { max-height: 86vh; overflow-y: auto; }
+  .ggrid, .cgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .girl {
+    background: #2e1c52; border-radius: 12px; padding: 8px 4px;
+    text-align: center; font-size: 12px; cursor: pointer;
+  }
+  .girl:active { transform: scale(.96); }
+  .girl .gava { font-size: 34px; line-height: 1.3; }
+  .girl .gprog { color: #8a8c96; font-size: 11px; }
+  .girl.done { box-shadow: 0 0 10px rgba(255,211,77,.7); }
+  .gcard {
+    background: #2e1c52; border-radius: 10px; padding: 8px 4px;
+    text-align: center; font-size: 10.5px; color: #b9bac2;
+  }
+  .gcard .ce { font-size: 26px; line-height: 1.4; }
+  .gcard.no { opacity: .4; }
+  .gcard.gplat { grid-column: 1 / -1; }
+  .gcard.gplat:not(.no) {
+    background: linear-gradient(135deg, #3a3322, #4a3d1f);
+    box-shadow: 0 0 12px rgba(255,211,77,.55); color: #ffd34d; font-weight: 700;
+  }
+
+  /* гача-окно одинакового размера на всех вкладках (крутки / замок / карточки), v13:
+     фикс-высота, скроллится только тело — окно не «прыгает» при переключении */
+  #gachaOverlay .sheet { height: min(86vh, 600px); overflow: hidden; }
+  /* padding-инсет (v15.2): #gachaBody — скролл-контейнер (overflow-y:auto → x клипает),
+     светящаяся рамка крайних тайлов (.sel/.done/.gplat, box-shadow до 16px) обрезалась
+     краем окна. Инсет ≥ радиуса свечения → рамка помещается в padding-box, не режется */
+  #gachaBody { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding: 16px; }
+  /* кнопки гачи (РОЛЛ/мульти/🎬/закрыть) — фикс-высота, не растягиваются по числу
+     видимых: «закрыть» одинаков на крутках/замке/карточках (.btn по умолчанию flex:1
+     в колонке тянулся бы по-разному). v13.1 */
+  #gachaOverlay .btn { flex: 0 0 auto; }
+
+  /* ── гача: навигация по страницам (стрелки + номер) ── */
+  .gnav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .gnavBtn {
+    border: none; border-radius: 8px; background: #3b2a63; color: #e8e8ea;
+    font-size: 18px; font-weight: 700; padding: 5px 16px; cursor: pointer; font-family: inherit;
+  }
+  .gnavBtn:active:not(:disabled) { transform: scale(.94); }
+  .gnavBtn:disabled { opacity: .25; cursor: default; }
+  .gnavLbl { font-size: 13px; font-weight: 800; color: #b9bac2; letter-spacing: .3px; }
+  /* страница-замок (следующая после текущей, ещё не открыта) */
+  .gachaLock { text-align: center; padding: 36px 12px; color: #8a8c96; font-size: 13px; line-height: 1.5; }
+  .gachaLock .lockico { font-size: 64px; margin-bottom: 12px; opacity: .8; }
+  /* итог мульти-ролла: горизонтальная авто-прокрутка карточек (~3 видно, медленный скролл) */
+  /* свайп влево-вправо: нативный горизонтальный скролл + drag мышью (десктоп) */
+  .galwrap {
+    overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    border-radius: 12px; background: #241544; padding: 10px 0; margin-bottom: 10px; cursor: grab;
+  }
+  .galwrap::-webkit-scrollbar { display: none; }
+  .galwrap.grabbing { cursor: grabbing; }
+  .galstrip { display: flex; gap: 8px; padding: 0 8px; width: max-content; }
+  .galcard {
+    flex: none; width: 92px; background: #2e1c52; border-radius: 10px; padding: 10px 4px;
+    text-align: center; font-size: 10px; color: #b9bac2; display: flex; flex-direction: column; gap: 2px;
+  }
+  .galcard .ce { font-size: 34px; line-height: 1.3; }
+  .galcard b { font-size: 11px; color: #e8e8ea; }
+
+  /* ── гача-колеса ── */
+  .girl.sel, .gcard.sel { box-shadow: 0 0 0 2px #ffd34d, 0 0 16px #ffd34d; }
+  .girl.winflash { animation: winflash .14s ease 5; }
+  @keyframes winflash { 50% { filter: brightness(2.2); transform: scale(1.1); } }
+  .gcard.reveal { animation: revealpop .6s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes revealpop {
+    0% { transform: scale(.2) rotate(-12deg); }
+    60% { transform: scale(1.18) rotate(3deg); }
+    100% { transform: scale(1); }
+  }
+  .gcard.dupe { animation: dupeshake .5s; }
+  @keyframes dupeshake {
+    0%,100% { transform: translate(0,0); } 20% { transform: translate(-5px,2px); }
+    40% { transform: translate(5px,-2px); } 60% { transform: translate(-4px,-1px); }
+    80% { transform: translate(3px,1px); }
+  }
+  #doubleFx {
+    position: fixed; inset: 0; display: flex; align-items: center;
+    justify-content: center; z-index: 30; pointer-events: none;
+  }
+  .dbltxt {
+    font-size: 56px; font-weight: 900; color: #ffd34d; letter-spacing: 2px;
+    text-shadow: 0 0 24px #ffd34d, 0 4px 0 #a06a00;
+    animation: dblpop 1.4s cubic-bezier(.2,1.4,.4,1) forwards;
+  }
+  @keyframes dblpop {
+    0% { transform: scale(.2) rotate(-8deg); opacity: 0; }
+    15% { opacity: 1; }
+    30% { transform: scale(1.25) rotate(2deg); }
+    45% { transform: scale(1); }
+    80% { opacity: 1; }
+    100% { transform: scale(1.1); opacity: 0; }
+  }
+  /* DOUBLE: явно показываем, что дубль = спины, и сколько их */
+  #doubleFx { flex-direction: column; gap: 8px; }
+  .dblsub {
+    font-size: 28px; font-weight: 900; color: #9fd64e; letter-spacing: 1px;
+    text-shadow: 0 0 18px #9fd64e, 0 3px 0 #3a5210;
+    animation: dblpop 1.4s cubic-bezier(.2,1.4,.4,1) .12s both;
+  }
+
+  /* ── мигание кнопок «хватает денег» ── */
+  .btn.blink { animation: btnblink .9s ease infinite; }
+  @keyframes btnblink {
+    50% { box-shadow: 0 0 16px #ffd34d; filter: brightness(1.3); }
+  }
+
+  /* ── итоговое окно мульти-ролла ── */
+  .sumrow {
+    background: #2e1c52; border-radius: 10px; padding: 8px 10px;
+    font-size: 13px; margin-bottom: 6px; line-height: 1.5;
+  }
+  .sumrow small { color: #8a8c96; }
+  .sumrow.plat {
+    background: linear-gradient(135deg, #3a3322, #4a3d1f);
+    color: #ffd34d; font-weight: 700; box-shadow: 0 0 12px rgba(255,211,77,.55);
+  }
+
+  /* ── магазин бустов (v11) ── */
+  .shopItem {
+    display: flex; align-items: center; gap: 10px;
+    background: #2e1c52; border-radius: 12px; padding: 10px; margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .shopItem:active { transform: scale(.98); }
+  .shopItem.on { box-shadow: 0 0 10px rgba(255,211,77,.6); background: #34302238; }
+  .shopIco { font-size: 28px; flex: none; width: 38px; text-align: center; }
+  .shopInfo { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .shopInfo b { font-size: 13px; }
+  .shopInfo span { font-size: 11px; color: #b9bac2; line-height: 1.3; }
+  .shopActs { flex: none; display: flex; flex-direction: column; gap: 5px; }
+  .shopGet {
+    border: none; cursor: pointer; font-family: inherit;
+    font-size: 12px; font-weight: 700; color: #1c2208;
+    background: #9fd64e; border-radius: 8px; padding: 7px 9px; text-align: center; line-height: 1.15;
+  }
+  .shopGet:active { transform: scale(.96); }
+  .shopGet.stars { background: #ffd34d; }
+  .shopGet small { font-weight: 500; opacity: .8; font-size: 9px; }
+
+  /* ── бонус (v12): яркое окно, мигание привлекает внимание ── */
+  /* приоритет НАД всеми окнами/VFX (overlay 10, тутор 40-42, конфетти/бёрст 44-45):
+     «Забрать бонус» всегда на самом верху (v13) */
+  #bonusOverlay { z-index: 100; }
+  #bonusOverlay.show { animation: jpbg .6s ease-in-out infinite; }
+  @keyframes jpbg {
+    0%,100% { background: rgba(0,0,0,.7); }
+    50% { background: rgba(150,110,0,.78); }
+  }
+  .jpsheet {
+    position: relative; z-index: 2;          /* над фоновым VFX-слоем */
+    background: linear-gradient(135deg, #3a2f12, #5a4716);
+    border: 2px solid #ffd34d; text-align: center; gap: 14px;
+    animation: jpglow .7s ease-in-out infinite;
+  }
+  /* изобильный фон бонуса: дождь монет/блёсток позади окна */
+  #jpVfx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+  .jpfall {
+    position: absolute; top: -10vh; will-change: transform, opacity;
+    animation: jpfall linear forwards;
+  }
+  @keyframes jpfall {
+    0%   { transform: translateY(-10vh) rotate(0); opacity: 0; }
+    12%  { opacity: 1; }
+    100% { transform: translateY(112vh) rotate(var(--r, 360deg)); opacity: .85; }
+  }
+  @keyframes jpglow {
+    0%,100% { box-shadow: 0 0 26px #ffd34d; }
+    50% { box-shadow: 0 0 60px #ffd34d, 0 0 110px rgba(255,211,77,.6); }
+  }
+  .jptitle {
+    font-size: 30px; font-weight: 900; color: #ffd34d; letter-spacing: 1px;
+    text-shadow: 0 0 18px #ffd34d, 0 3px 0 #a06a00;
+    animation: jptitlepulse .5s ease-in-out infinite alternate;
+  }
+  @keyframes jptitlepulse { from { transform: scale(1); } to { transform: scale(1.08); } }
+  .jpdesc { font-size: 14px; color: #ffe9b0; font-weight: 700; line-height: 1.5; }
+  .jpclaim {
+    border: none; border-radius: 14px; padding: 16px 12px; cursor: pointer;
+    font-family: inherit; font-size: 18px; font-weight: 900; color: #3a2200;
+    background: linear-gradient(135deg, #ffe08a, #ff9a3c);
+    box-shadow: 0 4px 14px rgba(0,0,0,.4);
+    animation: jpclaimpulse .5s ease-in-out infinite alternate;
+  }
+  .jpclaim:active { transform: scale(.97); }
+  .jpclaim.stars {
+    margin-top: 8px; font-size: 15px; color: #fff;
+    background: linear-gradient(135deg, #7a9bff, #4f6cff); animation: none;
+  }
+  @keyframes jpclaimpulse { from { transform: scale(1); } to { transform: scale(1.05); } }
+  /* первые 0.75с окно не реагирует на тапы (меньше ложных срабатываний) — кнопка приглушена */
+  .jpclaim.locked { opacity: .45; }
+  .jpclose {
+    border: none; background: none; cursor: pointer; font-family: inherit;
+    color: #caa94e; font-size: 12px; padding: 4px; text-decoration: underline;
+  }
+  /* убывающий таймер-бар: «успей забрать, пока не закрылось» */
+  .jptimer {
+    position: relative; height: 22px; border-radius: 11px; overflow: hidden;
+    background: #2a2008; box-shadow: inset 0 1px 3px rgba(0,0,0,.5);
+  }
+  .jptimerfill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 100%;
+    background: linear-gradient(90deg, #ff5f4d, #ffd34d);
+  }
+  .jptimertxt {
+    position: relative; z-index: 1; display: flex; align-items: center;
+    justify-content: center; height: 100%; font-weight: 900; font-size: 13px;
+    color: #2a1500; text-shadow: 0 1px 1px rgba(255,255,255,.35);
+  }
+
+  /* ── winline: прошлый вин висит, пока крутятся барабаны; тускнеет при проигрыше ── */
+  #winline { transition: opacity .3s, filter .3s; }
+  #winline.old { opacity: .35; filter: grayscale(.7); }
+
+  /* ── туториал: чуть прозрачная темнота + «прожектор» с мягким краем ── */
+  #tutHole {
+    position: fixed; z-index: 40; pointer-events: none; border-radius: 16px;
+    /* .62: сквозь темноту должно читаться, что вокруг (плейтест 2026-06-13) */
+    box-shadow: 0 0 24px 9999px rgba(0, 0, 0, .62);
+    transition: left .4s ease, top .4s ease, width .4s ease, height .4s ease;
+  }
+  #tutBlocks { position: fixed; inset: 0; z-index: 41; pointer-events: none; }
+  .tutBlock { position: absolute; pointer-events: auto; touch-action: none; }
+  #tutHint {
+    position: fixed; z-index: 42; pointer-events: none;
+    left: 50%; transform: translateX(-50%); width: min(88vw, 360px);
+    text-align: center; font-size: 16px; font-weight: 800; line-height: 1.4;
+    color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.95), 0 0 4px rgba(0,0,0,.9);
+  }
+  #tutHint.above { transform: translate(-50%, -100%); }
+  #tutPaw {
+    position: fixed; z-index: 42; pointer-events: none; font-size: 42px;
+    margin-left: -21px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.7));
+    animation: pawbob .65s ease-in-out infinite alternate;
+  }
+  @keyframes pawbob { from { transform: translateY(-8px); } to { transform: translateY(12px); } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="mascot">
+      <div id="mface">😺</div>
+      <div id="bubble">Let's spin!</div>
+    </div>
+    <div id="bars">
+      <div class="bar" id="spinsBar">
+        <div class="fill c-spins" id="spinsFill"></div>
+        <div class="txt"><b><span class="cur">🎲</span> Energy</b><span id="spinsVal">—</span></div>
+      </div>
+      <div class="bar" id="hardaBar">
+        <div class="fill c-harda" id="hardaFill"></div>
+        <div class="txt"><b><span class="cur">🪙</span> Coins</b><span id="hardaVal">—</span></div>
+      </div>
+      <div class="bar" id="expBar">
+        <div class="fill c-exp" id="expFill"></div>
+        <div class="txt"><b><span class="cur">🧿</span> EXP</b><span id="expVal">—</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div id="mid">
+    <div id="main">
+      <div id="board">
+        <div class="reel"><div class="strip"></div></div>
+        <div class="reel"><div class="strip"></div></div>
+        <div class="reel"><div class="strip"></div></div>
+        <div id="payline"></div>
+      </div>
+      <div id="winline"><span id="winTxt"></span></div>
+    </div>
+    <div id="rail">
+      <div id="railLbl">PULL ↓</div>
+      <div id="railZone"></div>
+      <div id="knob">✦</div>
+    </div>
+  </div>
+
+  <div id="meta">
+    <div id="metaRow">
+      <button class="btn" id="shopBtn">🛒 Shop</button>
+      <button class="btn" id="upgBtn">
+        <div id="upgFill"></div><div id="upgBtnTxt">Upgrade</div>
+      </button>
+      <button class="btn" id="collBtn">Collection 💖</button>
+    </div>
+    <button class="btn" id="rebirthBtn">
+      <div id="rebirthFill"></div><div id="rebirthTxt">—</div>
+    </button>
+    <button class="btn" id="wheelBtn">🎟️ Star Wheel</button>
+    <button class="btn" id="trackBtn" style="display:none">🗺️ Goals<br><small>—</small></button>
+    <button class="btn" id="autoBtn" style="display:none">Auto-play: OFF</button>
+  </div>
+
+  <footer>
+    spins: <span id="stSpins">0</span> · earned: <span id="stWon">0</span> ·
+    accelerated demo balance · <a href="#" id="resetLink">reset</a>
+    <div id="buildVer"></div>
+  </footer>
+
+  <!-- ═══ DEV-ПАНЕЛЬ — УДАЛИТЬ ПЕРЕД РЕЛИЗОМ (этот блок + #devPanel в CSS + секция «dev-кнопки» в JS) ═══ -->
+  <!-- скрыта; раскрывается 5 тапами по морде маскота (v12) -->
+  <div id="devPanel" style="display:none">
+    <span class="devTag">DEV</span>
+    <button id="devHarda">+ Coins</button>
+    <button id="devExp">+ EXP</button>
+    <button id="devTickets">+ Tickets</button>
+    <button id="devTrack">+ Track XP</button>
+    <button id="devDay">next day ⏭</button>
+    <button id="devGfx">GFX: HIGH</button>
+    <button id="devWipe">wipe save ⟲</button>
+  </div>
+  <!-- ═══ /DEV-ПАНЕЛЬ ═══ -->
+
+</div>
+
+<!-- слой эффектов под окнами (см. CSS #fxUnder) — вне #app, чтобы shake-трансформ не ломал fixed-координаты -->
+<div id="fxUnder"></div>
+
+<div class="overlay" id="upgOverlay">
+  <div class="sheet">
+    <h2>Upgrade ⬆️</h2>
+    <p><b>5 upgrades per run</b>, each one costs more. Each gives <b>+50%</b> to Coin payouts.</p>
+    <p class="big" id="upgWallet">—</p>
+    <p class="big" id="upgState">—</p>
+    <button class="btn accent" id="upgHarda">—</button>
+    <button class="btn" id="upgAd" style="display:none">🎬 Not enough? Upgrade via ad</button>
+    <button class="btn" id="upgStars" style="display:none">⭐ Upgrade for 10 Stars</button>
+    <p id="upgLog" style="min-height:18px"></p>
+    <button class="btn" id="upgClose">close</button>
+  </div>
+</div>
+
+<div class="overlay" id="rbOverlay">
+  <div class="sheet">
+    <h2>Ascension ♻️</h2>
+    <p id="rbInfo">—</p>
+    <p>Resets: Coins, upgrades.<br>Kept forever: win multiplier <b id="rbMult">—</b>, Energy fully restored.</p>
+    <p id="rbOver">—</p>
+    <button class="btn accent" id="rbGo">Ascend</button>
+    <button class="btn" id="rbClose">not now</button>
+  </div>
+</div>
+
+<div class="overlay" id="gachaOverlay">
+  <div class="sheet scroll">
+    <h2 id="gachaTitle">Collection 💖</h2>
+    <div id="gachaBody"></div>
+    <button class="btn accent" id="gachaRoll" style="display:none">—</button>
+    <button class="btn" id="gachaAd" style="display:none">🎬 Not enough? Roll via ad</button>
+    <button class="btn" id="gachaStars" style="display:none">⭐ Roll for 10 Stars</button>
+    <p id="gachaLog" style="min-height:18px"></p>
+    <button class="btn" id="gachaBack">close</button>
+  </div>
+</div>
+
+<div class="overlay" id="shopOverlay">
+  <div class="sheet scroll">
+    <h2>Shop 🛒</h2>
+    <p style="font-size:11px">Each boost — via 🎬 ad or ⭐ 10 Stars (your choice).</p>
+    <div id="shopBody"></div>
+    <p id="shopLog" style="min-height:18px"></p>
+    <button class="btn" id="shopClose">close</button>
+  </div>
+</div>
+
+<div class="overlay" id="spinsOverlay">
+  <div class="sheet">
+    <h2>Out of Energy 🎲</h2>
+    <p>Energy is empty. Wait for it to refill — or grab more via ad:</p>
+    <button class="btn accent" id="spinsAd">🎬 +25 via ad</button>
+    <button class="btn" id="spinsStars">⭐ +25 for 10 Stars</button>
+    <button class="btn" id="spinsClose">close</button>
+  </div>
+</div>
+
+<div class="overlay" id="wheelOverlay">
+  <div class="sheet">
+    <h2>Star Wheel 🎟️</h2>
+    <p>Spin with Tickets — win <b>EXP</b>. Earn a Ticket on the reels or buy one with Coins. The minimum is above a normal reel win, the maximum is the Grand Bonus.</p>
+    <div id="wheelWrap">
+      <div id="wheelPtr"></div>
+      <div id="wheel"></div>
+      <div id="wheelHub">🎟️</div>
+    </div>
+    <p class="big" id="rltState">—</p>
+    <p id="rltLog" style="min-height:18px"></p>
+    <button class="btn accent" id="rltSpin">—</button>
+    <button class="btn" id="rltSpinAll" style="display:none">—</button>
+    <button class="btn" id="rltClose">close</button>
+  </div>
+</div>
+
+<div class="overlay" id="bonusOverlay">
+  <div id="jpVfx"></div>
+  <div class="sheet jpsheet">
+    <div class="jptitle">💎 GRAND BONUS! 💎</div>
+    <div class="jpdesc" id="jpDesc">—</div>
+    <div class="jptimer"><div class="jptimerfill" id="jpTimerFill"></div><span class="jptimertxt" id="jpTimerTxt">5s</span></div>
+    <button class="jpclaim" id="jpClaim">🎬 CLAIM GRAND BONUS</button>
+    <button class="jpclaim stars" id="jpStars">⭐ CLAIM FOR 10 STARS</button>
+    <button class="jpclose" id="jpClose">close</button>
+  </div>
+</div>
+
+<div class="overlay" id="trackOverlay">
+  <div class="trkWrap">
+    <div class="trkTop"><h2>🗺️ Goals</h2><button id="trkClose">✕ Close</button></div>
+    <div class="trkScroll" id="trkScroll">
+      <div class="trkSec">Daily tasks</div>
+      <div id="trkDailies"></div>
+      <button class="trkAd" id="trkRerollAd">🎬 New tasks (watch ad)</button>
+      <div class="trkSec" style="margin-top:18px">Unlock track</div>
+      <div id="trkLadder"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tutHole" style="display:none"></div>
+<div id="tutBlocks" style="display:none">
+  <div class="tutBlock"></div><div class="tutBlock"></div>
+  <div class="tutBlock"></div><div class="tutBlock"></div>
+</div>
+<div id="tutHint" style="display:none"></div>
+<div id="tutPaw" style="display:none">👇</div>
+
+<script>
+"use strict";
+/* ═══════════ конфиг — зеркало balance.md (прото-баланс v3) ═══════════ */
+const CELL = 78, PAD = (170 - CELL) / 2;
+// иконки — эмодзи: index.html открывается с диска/телефона без сервера (решение 2026-06-12)
+const SYMS = [
+  { id: "harda", emoji: "🪙", w: 52, pay: 200  },
+  { id: "exp",   emoji: "🧿", w: 33, pay: 1000 },
+  { id: "spins", emoji: "🎲", w: 15, pay: 10   },
+  // wild ⚡ (v11): подменяет любой; 3×⚡ = супер-вин всех трёх ресурсов (balance.md §1a)
+  { id: "wild",  emoji: "⚡", w: 12, pay: 0, wild: true },
+  // бонус 💎 (v12.2): вес 0 — НЕ выпадает из randSym (не трогает винрейт), его
+  // лэндинг — отдельный ролл BONUS_P в doSpin (3×💎 → окно рекламы). balance.md §8
+  { id: "bonus", emoji: "💎", w: 0, pay: 0, bonus: true },
+  // бусты-символы (v13.5): вес 0 (как бонус, не из randSym — винрейт §1 не меняют),
+  // 3-в-ряд → инап магазина выигран прямо в барабане, сразу применяется + крупный текст,
+  // без окна. Версии короче магазинных (balance.md §7/§9, monetization.md)
+  { id: "btTurbo", emoji: "🚀", w: 0, pay: 0, boost: true },
+  { id: "btWild",  emoji: "🍀", w: 0, pay: 0, boost: true },
+  { id: "btMult",  emoji: "✨", w: 0, pay: 0, boost: true },
+  // билетик 🎟️ (v14): вес 0 (как бонус/бусты — не из randSym, винрейт §1 не трогает).
+  // садится «мусором» на ОДИН барабан на проигрышном спине → +1 билет в Колесу экспы (§10)
+  { id: "ticket", emoji: "🎟️", w: 0, pay: 0, ticket: true },
+];
+const WILD = SYMS.find(s => s.wild);
+const BONUS = SYMS.find(s => s.bonus);
+const TICKET = SYMS.find(s => s.ticket);
+const BOOST_SYMS = SYMS.filter(s => s.boost);
+// «спец»-символы (бонус + бусты): вес 0, платят ТОЛЬКО форс-роллом (3-в-ряд).
+// В обычной линии не платят и появляются лишь как «честные» декорации (§decorateSpecials)
+const isSpecial = s => !!(s.boost || s.bonus);
+const SPECIALS = SYMS.filter(isSpecial);
+// базовые ресурсы (харда/экспа/спины) — то, что платит 3×⚡ супер-вин (билет/спецы — вне)
+const BASE_SYMS = SYMS.filter(s => !s.wild && !isSpecial(s) && !s.ticket);
+const WSUM = SYMS.reduce((a, s) => a + s.w, 0);
+const REGEN_MS = 30000;          // 1 спин / 30 сек (прото, v13; в проде медленнее) — balance.md §2
+const SPINS_MAX = 50;            // v11: 100 → 50 (запрос автора) — balance.md §2
+const UPG_BASE = 400, UPG_RATIO = 1.4, UPG_MAX = 5;
+const GOALS = [5000, 15000, 40000, 100000, 250000];
+// пассивная экспа за каждый спин (~66% потока экспы) — цель: уровень ~раз в 2 мин
+// вручную (~47 спинов на цель L1). Усилено 12→70 (v8, запрос автора) — balance.md §4
+const EXP_PASSIVE = 70;
+// «перезрел»: экспа сверх цели → тиры (каждые +50% цели, макс 4), при перерождении
+// тир × цена ролла нового уровня стартовой хардой — «жать сейчас или пожирнее»
+const OVER_STEP = .5, OVER_MAX = 4;
+// гача ВСЕГДА дорогая: доход ×2 за престиж, цена ×1.9 → дешевеет лишь на 5.3%/престиж.
+// 1.5 (старое) давало снежный ком — коллекция выкупалась к L4, platMult ×512 ломал
+// баланс (рунэвей §6.6); 1.9 растягивает полную коллекцию на десятки ранов (balance.md §4a)
+const GACHA_COST = 500, GACHA_RATIO = 1.9;
+// кап мульти-ролла: при руннэйв-харде floor(harda/cost) мог уйти в тысячи итераций
+// и подвесить устройство — ограничиваем (balance.md §5)
+const MULTI_MAX = 100;
+// магазин бустов (v11, balance.md §7, monetization.md) — сейчас всё бесплатно (тест)
+const FIVE_MIN = 5 * 60 * 1000;
+const TURBO_T1 = 1.0, TURBO_T2 = 0.5;  // durMul: тир1 = рука, тир2 = вдвое быстрее
+const WILD_STREAK = 25;                // спинов с принудительным ⚡ на 1-м барабане (v13.4: 10→25)
+const SHOP_SPINS = 25;                 // спинов за рекламу/магазин — мгновенно (v13.4: 10→25)
+const BUFF_MULT = 2;                   // «×2 харда+опыт» на 5 минут
+// бусты можно ВЫИГРАТЬ на барабанах (v13.5): символы 🚀/🍀/✨ (вес 0, как бонус),
+// 3-в-ряд → буст. Каждый — независимый ролл за спин. Версии короче магазинных. balance.md §9
+const BOOST_P = 0.012;                 // шанс каждого из 3 бустов за спин (~1/83)
+const WIN_BOOST_MS = 60 * 1000;        // турбо тир2 / ×2, выигранные на барабанах — 1 минута
+const WIN_WILD_STREAK = 10;            // wild-полоса с барабанов — 10 спинов
+// «честная» крутка (v13.6): спец-символы (💎/🚀/🍀/✨, вес 0) изредка появляются
+// поодиночке/парами в ПРОИГРЫШНЫХ спинах — иначе один клевер = гарантированный выигрыш
+// (виден только при 3-в-ряд). НИКОГДА не 3 разом → не ложный вин/бонус. Тюнится.
+const SPECIAL_DECOY_P = 0.16;          // доля проигрышных спинов с декором спец-символа
+// из них — пара (v15.3: 0.22→0.5). Пара теперь ВСЕГДА на первых двух барабанах
+// (прогрев третьего) → честный near-miss «два почти сошлись, третий мимо». Раньше пара
+// ложилась на случайные 2 из 3 → прогрев строился лишь в 1/3 случаев, и оставалось
+// ощущение «выпал один спец = точно будет три». balance.md §9
+const SPECIAL_PAIR_P = 0.5;
+// ═══ Колеса экспы (v14, balance.md §10) — харда→опыт-сток на лейте ═══
+// билет 🎟️: цена привязана к global (не goal) → экономика уровне-независима (за ран
+// хватает на ~5 билетов на любом L); дроп «мусором» на проигрышном спине.
+const TICKET_BASE = 1600;              // цена билета = TICKET_BASE × global() харды
+const TICKET_DROP_P = 0.012;           // шанс уронить билет на проигрышном спине (~1/83)
+const ticketCost = () => Math.round(TICKET_BASE * global());
+// сегменты колеса (равные слайсы 1/12). Каждый: m = множитель ТЕКУЩЕГО барабан-выигрыша
+// экспы (колеса ВСЕГДА даёт больше барабана, т.к. m>1), g = доля goal() — флор на лейте,
+// где goal обгоняет M и m×барабан проседает. Награда = max(m×барабан, g×goal). Один бонус 💎,
+// больше 🔥 и 🌟, меньше базовых 🧿 (запрос автора 2026-06-16).
+const WHEEL = [
+  { m: 1.4, g: 0.03 }, { m: 2.2, g: 0.06 }, { m: 1.4, g: 0.03 },
+  { m: 3.5, g: 0.11 }, { m: 2.2, g: 0.06 }, { m: 3.5, g: 0.11 },
+  { m: 2.2, g: 0.06 }, { m: 1.4, g: 0.03 }, { m: 10,  g: 0.25 },
+  { m: 3.5, g: 0.11 }, { m: 2.2, g: 0.06 }, { m: 3.5, g: 0.11 },
+]; // 💎×1, 🔥×4, 🌟×4, 🧿×3
+// базовый барабан-выигрыш экспы = выплата тройки 🧿 (формула из evaluate) — колеса считается от него
+const reelExpWin = () => Math.round(SYMS[1].pay * global() * platMult() * tempMult() * expBoost() * metaBonus.expMul);
+const wheelExp = seg => Math.max(Math.round(seg.m * reelExpWin()), Math.round(seg.g * goal()));
+const rltIsBonus = seg => seg.m >= 10;
+// девочки бесконечны (v13): страница = 9 девочек, имя/аватар генерятся по глобальному
+// индексу. Пулы разной длины → комбинации имя+аватар не повторяются на ранних страницах
+const GIRL_NAMES = ["Yuki","Asuka","Rin","Mika","Hana","Sora","Yume","Rei","Sakura",
+  "Nana","Mei","Aki","Yuna","Kira","Eri","Mio","Ria","Neko","Tsuki","Haru","Kohana","Ayane"];
+const GIRL_AVAS = ["👩","👩‍🦰","🧑‍🦰","👩‍🦱","🧑‍🦱","👩‍🦳","🧑‍🦳","👩‍🦲","👱‍♀️",
+  "👸","🧝‍♀️","🧚‍♀️","🦸‍♀️","🧜‍♀️","💃","🙋‍♀️","🧕","👰‍♀️"];
+const ROMAN = ["","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+const girl = gi => {
+  const base = GIRL_NAMES[gi % GIRL_NAMES.length];
+  const tier = Math.floor(gi / GIRL_NAMES.length); // повтор имени на дальних страницах → суффикс
+  return { name: tier ? base + " " + (ROMAN[tier] || (tier + 1)) : base,
+           ava: GIRL_AVAS[gi % GIRL_AVAS.length] };
+};
+
+/* ═══════════ состояние ═══════════ */
+const SAVE_V = 18; // v18: шкала анлоков + дейлики заменили Созвездие и скрытые триггеры онбординга (бамп = вайп демо-сейвов, тутор перезапускается)
+// версия билда — мелким текстом в футере (см. разметку футера)
+const BUILD = "Hoshikuzu v1 · 2026-06-16";
+// бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
+// 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
+const BONUS_P = 0.015;
+// окно бонуса живёт 5с (виден убывающий таймер-бар, v13) — потом само закрывается
+const BONUS_MS = 5000;
+// первые 0.75с окно не реагирует на тапы (ни забрать, ни закрыть) — меньше ложных
+// срабатываний (палец ещё на экране после спина) — v13
+const JP_ARM_MS = 750;
+// DEFAULTS — фабрика: cards/plat — массивы, общие ссылки между ранами недопустимы
+const DEFAULTS = () => ({
+  v: SAVE_V, spins: SPINS_MAX, harda: 0, exp: 0, level: 1,
+  upgCount: 0, hardaMult: 1,
+  lastRegen: Date.now(), totalSpins: 0, totalWon: 0, auto: false,
+  // одна страница (9 девочек) на старте; растут по мере открытия страниц (v13)
+  cards: Array.from({ length: 9 }, () => Array(9).fill(0)), plat: Array(9).fill(false),
+  tutDone: false,
+  // магазинные бусты (v11): таймеры-таймстемпы переживают перезагрузку в своём окне,
+  // переживают перерождение (это «инапы», не ран-прогресс) — balance.md §7
+  turboUntil: 0, turboTier: 1, mult2Until: 0, wildStreak: 0,
+  // билеты Колеси экспы (v14): инвентарь, переживают перерождение. SAVE_V НЕ бампали —
+  // поле аддитивно, старые сейвы (v17 без tickets) подхватят дефолт 0 (balance.md §10)
+  tickets: 0,
+  // шкала анлоков + дейлики (progression.md): track.tier — сколько ступеней пройдено,
+  // track.xp — суммарный track-опыт (дейлики + лёгкий пассив). Мета exp/coin бонусы
+  // считаются из пройденных бонус-ступеней (recomputeMeta), в сейве НЕ хранятся.
+  // daily — задачи на текущий локальный день (rollDailies перекатывает при смене дня).
+  track: { xp: 0, tier: 0 },
+  daily: { day: 0, tasks: [], allBonus: false, adReroll: false },
+  // прогрессивное раскрытие UI (v15, 2026-06-15): на старте видны только кот+барабаны+
+  // рука; бары и кнопки открываются по ходу обучения (tutorial.md). Флаги аддитивны —
+  // старые сейвы грандфазерятся в load() (всё открыто). obSpins — счётчик спинов после
+  // вехи (2-е перерождение → автоспин на 3-м спине; автоспин-тутор → магазин на 5-м)
+  barSpins: false, barExp: false,
+  upgUnlocked: false, gachaUnlocked: false, rebirthUnlocked: false,
+  shopUnlocked: false, wheelUnlocked: false, obSpins: 0,
+  // автоспин открывается мини-туториалом на 2-м перерождении (v15, было 1-е); autoTutDone — он же
+  autoUnlocked: false, autoTutDone: false,
+  savedAt: 0, // когда сейв записан — конфликт устройств решается «свежее побеждает»
+});
+let S = load();
+let spinning = false, loseStreak = 0;
+// бонус выпал на линии: блокирует новые спины, пока окно награды не закрыто (v12.2)
+let bonusLanded = false;
+// колеса экспы крутится — лочим её кнопки (v14)
+let rltSpinning = false;
+// туториал: active — идёт обучение, step — текущий шаг, force — форс-исход спина
+// (id символа: скриптованные выигрыши без рандома), rendered — какой шаг уже
+// отрисован (гард от двойного тапа). Движок — секция «туториал» ниже
+const TUT = { active: false, step: null, force: null, rendered: null };
+
+/* ═══════════ тир графики (v13.6) — бюджетные устройства давятся на пейнте победы ═══════════ */
+// GFX_LOW режет частицы/виньетку/тряску/блюр текста. Сигнал: (1) device-local флаг
+// (НЕ в S — не синкается между устройствами через CloudStorage), (2) грубая эвристика
+// по железу, (3) авто-детект по FPS во время спинов (Redmi 10S по железу не ловится —
+// 8 ядер; ловим по реальным тормозам). DEV-кнопка форсит вручную для теста.
+const GFX_KEY = "hoshikuzu_gfx";
+function gfxInit() {
+  try {
+    const v = localStorage.getItem(GFX_KEY);
+    if (v === "low") return true;
+    if (v === "high") return false;
+  } catch (e) {}
+  const dm = navigator.deviceMemory || 0, hc = navigator.hardwareConcurrency || 0;
+  return (dm && dm <= 2) || (hc && hc <= 4); // только заведомо слабые; остальное — авто-детект
+}
+let GFX_LOW = gfxInit();
+function setGfx(low) {
+  GFX_LOW = low;
+  try { localStorage.setItem(GFX_KEY, low ? "low" : "high"); } catch (e) {}
+  const b = document.getElementById("devGfx");
+  if (b) b.textContent = "GFX: " + (GFX_LOW ? "LOW" : "HIGH");
+}
+// авто-детект: сэмплируем кадры одного барабана во время спина; если ~30%+ кадров
+// тормозят (>32мс ≈ <30fps) на ~120 кадрах выборки — переключаемся в LOW и запоминаем
+let _gfxFrames = 0, _gfxSlow = 0, _gfxLastTs = 0, _gfxDecided = false;
+function gfxSample(now) {
+  if (_gfxDecided || GFX_LOW) { _gfxDecided = true; return; }
+  if (_gfxLastTs) {
+    const dt = now - _gfxLastTs;
+    if (dt < 200) { // паузы между спинами не считаем за «тормоз»
+      if (dt > 32) _gfxSlow++;
+      if (++_gfxFrames >= 120) {
+        if (_gfxSlow / _gfxFrames > 0.35) setGfx(true);
+        _gfxDecided = true;
+      }
+    }
+  }
+  _gfxLastTs = now;
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem("hoshikuzu_save");
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d.v === SAVE_V) {
+        const s = Object.assign(DEFAULTS(), d);
+        // грандфазер (v15): старый сейв, уже прошедший прежний туториал, не должен вдруг
+        // потерять кнопки/бары из-за прогрессивного раскрытия — открываем всё разом
+        if (s.tutDone && d.barSpins === undefined) {
+          s.barSpins = s.barExp = s.upgUnlocked = s.gachaUnlocked =
+            s.rebirthUnlocked = s.shopUnlocked = s.wheelUnlocked = true;
+        }
+        return s;
+      }
+    }
+  } catch (e) {}
+  return DEFAULTS();
+}
+// ── сейв-синк: localStorage (кэш, мгновенно) + Telegram CloudStorage (между
+// устройствами). Решения и риски — save.md. Конфликт двух устройств НЕ мерджится:
+// побеждает последняя запись (savedAt) — одновременная игра перезаписывается,
+// прогресс не суммируется (анти-абуз)
+const CLOUD_KEY = "save";
+const cloudAvail = () => {
+  const w = window.Telegram && window.Telegram.WebApp;
+  return (w && w.CloudStorage) || null;
+};
+let cloudTimer = null, cloudDirty = false;
+function save() {
+  S.savedAt = Date.now();
+  localStorage.setItem("hoshikuzu_save", JSON.stringify(S));
+  // в клауд — с троттлингом ~3с: save() летит после каждого спина
+  cloudDirty = true;
+  if (cloudAvail() && !cloudTimer) cloudTimer = setTimeout(cloudFlush, 3000);
+}
+// v13.6: per-spin save() (JSON.stringify всего S + синхронная запись в localStorage)
+// падал в один тик с пейнтом победы — на лейте S.cards разрастается страницами гачи,
+// и это заметный фриз на бюджетниках. Откладываем за кадр (макротаск пускает рендер
+// вперёд) и коалесим: при автоспине пишем не каждый спин, а раз на «холостой» тик.
+// visibilitychange→hidden и события UI (магазин/гача/перерождение) сохраняют синхронно.
+let saveScheduled = false;
+function deferSave() {
+  if (saveScheduled) return;
+  saveScheduled = true;
+  setTimeout(() => { saveScheduled = false; save(); }, 0);
+}
+function cloudFlush() {
+  clearTimeout(cloudTimer); cloudTimer = null;
+  const cs = cloudAvail();
+  if (!cs || !cloudDirty) return;
+  cloudDirty = false;
+  try { cs.setItem(CLOUD_KEY, JSON.stringify(S), () => {}); } catch (e) {}
+}
+// при запуске: если клауд-сейв свежее локального — берём его (новый телефон,
+// игра на двух устройствах). done() вызывается ВСЕГДА: нет клауда / молчит >2с —
+// играем с локальным, не ждём
+function cloudInit(done) {
+  const cs = cloudAvail();
+  if (!cs) { done(); return; }
+  let fin = false;
+  const finish = () => { if (!fin) { fin = true; done(); } };
+  setTimeout(finish, 2000);
+  try {
+    cs.getItem(CLOUD_KEY, (err, val) => {
+      if (!err && val) {
+        try {
+          const d = JSON.parse(val);
+          // чужую версию сейва молча отбрасываем — как и локальную (SAVE_V)
+          if (d.v === SAVE_V && (d.savedAt || 0) > (S.savedAt || 0)) {
+            S = Object.assign(DEFAULTS(), d);
+            recomputeMeta(); // metaBonus из пройденных бонус-ступеней шкалы
+            localStorage.setItem("hoshikuzu_save", JSON.stringify(S));
+          }
+        } catch (e) {}
+      }
+      finish();
+    });
+  } catch (e) { finish(); }
+}
+
+const global = () => 2 ** (S.level - 1);
+// платина: +5% к ЭКСПЕ за каждую девочку, АДДИТИВНО (1+0.05n), бьёт по тройке экспы
+// И пассивной экспе за крутку; переживает перерождение. Харду НЕ множит — иначе
+// снежный ком (balance.md §4a). v13: девочки бесконечны → platMult растёт без капа,
+// это мета-ускоритель уровня (лечит «медленно набирающийся опыт» — запрос автора)
+const platMult = () => 1 + 0.05 * S.plat.filter(Boolean).length;
+// магазинные бусты (v11, balance.md §7): tempMult — временный ×2 к харде/экспе;
+// turboMul — durMul автоспина (тир1 = рука, тир2 вдвое быстрее), иначе медленный авто
+const turboActive = () => S.turboUntil > Date.now();
+const turboMul = () => !turboActive() ? AUTO_DURMUL : (S.turboTier >= 2 ? TURBO_T2 : TURBO_T1);
+const tempMult = () => S.mult2Until > Date.now() ? BUFF_MULT : 1;
+// туториальный буст опыта (v15.2): первые 3 уровня перерождения копятся быстрее, чтобы
+// обучающая секция (автоспин на 2-м престиже, колеса на 3-м) не тянулась; на L4+ —
+// норма. Бьёт ТОЛЬКО опыт (пассив + тройки), харду/спины не трогает. balance.md §4
+const TUT_EXP_BOOST = 2;
+const expBoost = () => S.level <= 3 ? TUT_EXP_BOOST : 1;
+// без оператора ?? — он требует Chrome 80+ и валит парсинг скрипта на старых
+// webview (игра не открывалась на части устройств), всё дальше тоже мёртвое
+const goal = () => { const g = GOALS[S.level - 1]; return g != null ? g : GOALS[GOALS.length - 1] * 2.5 ** (S.level - GOALS.length); };
+const overTiers = () => Math.min(OVER_MAX, Math.floor(Math.max(0, S.exp - goal()) / (goal() * OVER_STEP)));
+const upgCost = () => Math.round(UPG_BASE * global() * UPG_RATIO ** S.upgCount); // цена привязана к инфляции (balance.md A2.4)
+const fmt = n => n >= 1e9 ? (n / 1e9).toFixed(1) + "B"
+              : n >= 1e6 ? (n / 1e6).toFixed(1) + "M"
+              : n >= 1e4 ? (n / 1e3).toFixed(1) + "K" : Math.round(n).toString();
+
+/* ═══════════ звук (WebAudio, без ассетов) ═══════════ */
+let AC = null;
+function ac() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === "suspended") AC.resume();
+  return AC;
+}
+function beep(freq, dur, type, vol, when) {
+  try {
+    const c = ac(), o = c.createOscillator(), g = c.createGain();
+    const t = c.currentTime + (when || 0);
+    o.type = type || "square"; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || .05, t);
+    g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur);
+  } catch (e) {}
+}
+const sTick = () => beep(700 + Math.random() * 200, .025, "square", .025);
+const sThud = () => beep(140, .09, "sine", .12);
+const sMiss = () => { beep(240, .12, "sine", .05); beep(170, .2, "sine", .05, .12); }; // нисходящий «вздох» промаха
+const sCoin = i => beep(520 * 1.25 ** i, .12, "triangle", .07, i * .07);
+function sFanfare() { [0, 4, 7, 12, 16, 19, 24].forEach((n, i) => beep(330 * 2 ** (n / 12), .22, "triangle", .08, i * .09)); }
+const tg = window.Telegram && window.Telegram.WebApp;
+const vibrate = arg => {
+  try {
+    const h = tg && tg.HapticFeedback;            // в TG — богаче navigator.vibrate, работает и на iOS
+    if (h) {
+      if (Array.isArray(arg)) h.notificationOccurred("success");  // паттерны = бигвины
+      else h.impactOccurred(arg <= 20 ? "light" : arg <= 40 ? "medium" : "heavy");
+      return;
+    }
+    navigator.vibrate && navigator.vibrate(arg);
+  } catch (e) {}
+};
+
+/* ═══════════ Adsgram rewarded-реклама (ads.md) ═══════════ */
+// BLOCK ID из кабинета Adsgram (Reward-юнит). ВКЛЮЧЕНО (v16.2): реклама активна в TG.
+// Вне Telegram (десктоп) / если SDK не загрузился — 🎬-точки деградируют к тест-выдаче
+// (мгновенно), чтобы прототип открывался с диска. Сменить → вписать новый ID сюда.
+const ADSGRAM_BLOCK_ID = "35299";
+let adController = null;
+try {
+  // init только если SDK загрузился И BLOCK_ID реально проставлен (не плейсхолдер)
+  if (window.Adsgram && ADSGRAM_BLOCK_ID.indexOf("PASTE_") !== 0) {
+    adController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
+  }
+} catch (e) { adController = null; }
+// Показ rewarded-рекламы. КОНТРАКТ (ads.md §2): награда — ТОЛЬКО при полном досмотре.
+//   reward() — успех (досмотрел до конца) → выдать награду.
+//   fail()   — скип/закрытие/нет рекламы (no-fill) → БЕЗ награды, но без тупика.
+// Вне Adsgram (десктоп / BLOCK_ID не проставлен / SDK не загрузился) — мгновенная
+// выдача через reward() (тест-режим, как было до подключения). На этапе 1 это ок:
+// реальных денег у игрока нет (ads.md §2). К этапу 2 — серверный postback.
+function showAd(reward, fail) {
+  if (!adController) { reward(); return; }      // ads не настроены/недоступны → тест-выдача
+  adController.show().then(() => reward())       // resolve = досмотр до конца
+    .catch(() => { if (fail) fail(); });         // reject = скип/no-fill → без награды
+}
+
+/* ═══════════ Telegram Stars — оплата вместо рекламы (monetization.md, stars.md) ═══════════ */
+// Параллельный рекламе платный канал: в каждой 🎬-точке рядом есть кнопка ⭐ за STARS_PRICE
+// звёзд. Контракт ТОТ ЖЕ, что у showAd: reward() при успехе, fail() при отмене/ошибке —
+// поэтому обе кнопки переиспользуют одну выдачу.
+// STARS_API — URL Cloudflare Worker'а (worker/), который создаёт инвойс и отвечает на
+// pre_checkout (без него платёж невозможен — это бэкенд-бот, не статика). Вписать после
+// деплоя воркера (stars.md §деплой). Плейсхолдер / вне Telegram → buyWithStars
+// деградирует к тест-выдаче (мгновенно), как реклама с диска (этап 1: выдача клиентская).
+const STARS_API = "PASTE_WORKER_URL_HERE";
+const STARS_PRICE = 10;                          // звёзд за любую покупку (плоско)
+// item — id товара; сервер строит по нему инвойс (название/payload), цена всегда STARS_PRICE.
+function buyWithStars(item, reward, fail) {
+  if (!tg || !tg.openInvoice || STARS_API.indexOf("PASTE_") === 0) { reward(); return; }
+  fetch(STARS_API + "/invoice", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item, initData: tg.initData || "" }),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (!d.link) throw 0;
+      // статусы openInvoice: paid / cancelled / failed / pending — награда только за paid
+      tg.openInvoice(d.link, status => { if (status === "paid") reward(); else if (fail) fail(); });
+    })
+    .catch(() => { if (fail) fail(); });
+}
+
+/* ═══════════ маскот ═══════════ */
+const mface = document.getElementById("mface"), bubble = document.getElementById("bubble");
+const PHRASES = {
+  idle:    ["Let's spin!", "Today's the day, I feel it", "So close, keep going!", "One more?"],
+  win:     ["Nice!", "Wow!", "Keep it up!", "More! More!"],
+  bigwin:  ["STELLAR!!! 🎉", "HUGE!!!", "NOW WE'RE TALKING!!!"],
+  lose:    ["Don't give up!", "Your luck's about to turn", "I believe in you 🥺", "Just warming up"],
+  near:    ["SO CLOSE!!! Argh!", "Just barely missed!", "Is it teasing us?!"],
+  // фразы не длиннее 3 строк пузыря (~36 знаков, без слов шире 12 знаков)
+  low:     ["Out of Energy... grab more 😏", "Energy's empty, take a break"],
+  rebirth: ["Ascended! Rates ×2 forever!"],
+};
+let sayTimer = null;
+function say(kind, face) {
+  const arr = PHRASES[kind];
+  bubble.textContent = arr[Math.floor(Math.random() * arr.length)];
+  mface.textContent = face || "😺";
+  mface.classList.remove("pop"); void mface.offsetWidth; mface.classList.add("pop");
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(() => { mface.textContent = "😺"; say.idleAt = Date.now(); }, 3500);
+}
+setInterval(() => { if (!spinning && Math.random() < .25) say("idle"); }, 12000);
+
+// DEV-панель скрыта; 5 тапов по морде маскота ТОГГЛЯТ её (откр/закр) (v13, убрать перед релизом)
+let devTaps = 0;
+mface.addEventListener("click", () => {
+  if (++devTaps < 5) return;
+  devTaps = 0;
+  const dp = document.getElementById("devPanel");
+  const opening = dp.style.display === "none";
+  dp.style.display = opening ? "flex" : "none";
+  bubble.textContent = opening ? "🛠 DEV panel open" : "🛠 DEV panel hidden";
+  mface.classList.remove("pop"); void mface.offsetWidth; mface.classList.add("pop");
+});
+
+/* ═══════════ барабаны ═══════════ */
+const randSym = () => {
+  let r = Math.random() * WSUM;
+  for (const s of SYMS) { if ((r -= s.w) < 0) return s; }
+  return SYMS[0];
+};
+// лента барабана — повторяющийся цикл из 3 разных иконок («виртуальный барабан»):
+// соседние символы никогда не совпадают, веса работают только на выбор символа стопа
+// 8 символов в цикле (v11: +wild ⚡, v12.2: +bonus 💎, v13.5: +3 буста 🚀🍀✨):
+// соседние и стык цикла никогда не совпадают, у каждого барабана своя ротация —
+// нет синхронных столбцов. 💎 и бусты видны на ленте, но на линию садятся только
+// форс-роллом (вес 0 в randSym). Цикл из 8 разных символов → дублей-соседей нет.
+// v14: +билет 🎟️ (SYMS[8]) — обязан быть в цикле, иначе довёртка до форс-дропа
+// зациклилась бы (nextSym ходит только по cycle). 9 разных символов, соседи не совпадают
+const CYCLES = [
+  [SYMS[0], SYMS[1], SYMS[2], SYMS[3], SYMS[4], SYMS[5], SYMS[6], SYMS[7], SYMS[8]],
+  [SYMS[1], SYMS[3], SYMS[0], SYMS[4], SYMS[2], SYMS[6], SYMS[8], SYMS[7], SYMS[5]],
+  [SYMS[2], SYMS[4], SYMS[3], SYMS[0], SYMS[8], SYMS[1], SYMS[7], SYMS[5], SYMS[6]],
+];
+const reels = [...document.querySelectorAll(".reel")].map((el, idx) => {
+  const r = { el, strip: el.querySelector(".strip"), syms: [], center: 4, y: 0, tension: 0, cycle: CYCLES[idx] };
+  for (let i = 0; i < 9; i++) r.syms.push(r.cycle[i % r.cycle.length]);
+  render(r); setY(r, PAD - r.center * CELL);
+  return r;
+});
+function render(r) {
+  r.strip.innerHTML = r.syms.map(s => `<div class="cell"><span class="sym">${s.emoji}</span></div>`).join("");
+}
+function setY(r, y) { r.y = y; r.strip.style.transform = `translateY(${y}px)`; }
+
+function spinReel(r, target, idx, durMul, heat) {
+  return new Promise(resolve => {
+    // подрезаем ленту ДО старта (невидимо), а не при остановке — иначе дёргается
+    r.syms = r.syms.slice(r.center - 4); r.center = 4; r.tension = 0;
+    const nextSym = () => r.cycle[(r.cycle.indexOf(r.syms[r.syms.length - 1]) + 1) % r.cycle.length];
+    const add = 16 + idx * 6 + (heat ? 16 : 0); // при прогреве длиннее лента, скорость та же
+    for (let i = 0; i < add; i++) r.syms.push(nextSym());
+    // довертеть цикл так, чтобы целевой символ лёг на центральную линию (макс +3 ячейки)
+    while (r.syms[r.syms.length - 2] !== target) r.syms.push(nextSym());
+    const newCenter = r.syms.length - 2;
+    render(r);
+    const y0 = PAD - r.center * CELL, y1 = PAD - newCenter * CELL;
+    setY(r, y0);
+    if (heat) r.el.classList.add("heat");
+    const dur = (950 + idx * 380) * durMul;
+    const CUT = .82; // на 82% пути изинг передаёт скорость пружине — без полной остановки
+    const t0 = performance.now();
+    let lastCell = 0;
+    if (r.spring) { cancelAnimationFrame(r.spring); r.spring = null; }
+    r.strip.classList.add("blur");
+    (function frame(now) {
+      if (idx === 0) gfxSample(now); // авто-детект тира по FPS (v13.6)
+      const t = Math.min(1, (now - t0) / dur);
+      if (t < CUT) {
+        const e = 1 - (1 - t) ** 3; // easeOutCubic: резкий старт от рывка руки
+        const y = y0 + (y1 - y0) * e;
+        setY(r, y);
+        const cellPos = Math.floor(-y / CELL);
+        if (cellPos !== lastCell) { lastCell = cellPos; sTick(); }
+        if (t > .7) r.strip.classList.remove("blur");
+        requestAnimationFrame(frame);
+        return;
+      }
+      // стыковка: затухающая пружина продолжает движение с ТЕКУЩЕЙ скоростью —
+      // барабан по инерции пролетает точку, возвращается и колеблется в ноль
+      let y = y0 + (y1 - y0) * (1 - (1 - CUT) ** 3);
+      let v = (y1 - y0) * 3 * (1 - CUT) ** 2 / dur; // px/мс, производная изинга
+      r.strip.classList.remove("blur");
+      r.el.classList.remove("heat");
+      r.center = newCenter;
+      sThud(); vibrate(15);
+      let last = now;
+      const K = 0.0003, C = 0.0135; // жёсткость/трение: ~1.2 колебания, затухание ~450мс
+      (function springFrame(n) {
+        const dt = Math.min(32, n - last); last = n;
+        v += (K * (y1 - y) - C * v) * dt;
+        y += v * dt;
+        if (Math.abs(y - y1) < .4 && Math.abs(v) < .005) { setY(r, y1); r.spring = null; return; }
+        setY(r, y);
+        r.spring = requestAnimationFrame(springFrame);
+      })(now);
+      resolve();
+    })(t0);
+  });
+}
+
+/* ═══════════ спин и выплаты ═══════════ */
+const winline = document.getElementById("winline");
+const winTxt = document.getElementById("winTxt");
+// сумма выигрыша накручивается каунт-апом ~0.6с — число «зарабатывается» на глазах
+let countRAF = null;
+function winCount(prefix, amt, suffix) {
+  if (countRAF) cancelAnimationFrame(countRAF);
+  const t0 = performance.now(), dur = 600;
+  (function f(now) {
+    const t = Math.min(1, (now - t0) / dur);
+    winTxt.textContent = prefix + fmt(amt * (1 - (1 - t) ** 2)) + suffix;
+    countRAF = t < 1 ? requestAnimationFrame(f) : null;
+  })(t0);
+}
+function goldFlash() {
+  const sb = document.getElementById("board");
+  sb.classList.remove("goldflash"); void sb.offsetWidth; sb.classList.add("goldflash");
+}
+// under=true → эффект уходит в слой #fxUnder (под окнами): для выигрышей барабана,
+// чтобы при открытой модалке джус не лез поверх неё (v13). Гача/бонус — без under
+const fxRoot = under => under ? document.getElementById("fxUnder") : document.body;
+function vignette(under) {
+  if (GFX_LOW) return; // полноэкранный радиальный градиент — дорогой пейнт на бюджетниках
+  const v = document.createElement("div");
+  v.className = "vignette";
+  fxRoot(under).appendChild(v);
+  setTimeout(() => v.remove(), 1100);
+}
+// промах после прогрева: томление обязано получить развязку, даже отрицательную —
+// раньше 22% спинов (прогрев без вина) кончались НИЧЕМ (плейтест 2026-06-13)
+function nearMiss() {
+  const el = reels[2].el;
+  el.classList.remove("miss"); void el.offsetWidth; el.classList.add("miss");
+  sMiss();
+  if (Math.random() < .5) say("near", "😾");
+}
+function floatText(txt, color, dx) {
+  const f = document.createElement("span");
+  f.className = "float"; f.textContent = txt;
+  f.style.color = color; f.style.left = `calc(50% + ${dx || 0}px)`;
+  f.style.transform = "translateX(-50%)";
+  winline.appendChild(f);
+  setTimeout(() => f.remove(), 1300);
+}
+// крупный текст выигрыша поверх барабана (v13.5): «что и сколько выиграли» как часть VFX
+// — изобильнее обычного winline. Якорится по центру барабана, всплывает и гаснет.
+// under=true → слой под окнами (выигрыши барабана не лезут поверх модалок, как §7)
+function bigWinText(txt, color, under) {
+  const box = document.getElementById("board").getBoundingClientRect();
+  const el = document.createElement("div");
+  el.className = GFX_LOW ? "bigwin lite" : "bigwin"; // lite: без размытой тени/обводки
+  el.textContent = txt; el.style.color = color;
+  el.style.left = (box.left + box.width / 2) + "px";
+  el.style.top = (box.top + box.height / 2) + "px";
+  fxRoot(under).appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
+// плавающий +N над произвольным элементом (бар спинов при дубле гачи и т.п.)
+function floatAt(el, txt, color) {
+  const r = el.getBoundingClientRect();
+  const f = document.createElement("span");
+  f.className = "float"; f.textContent = txt; f.style.color = color;
+  f.style.position = "fixed"; f.style.zIndex = 45;
+  f.style.left = (r.left + r.width / 2) + "px";
+  f.style.top = (r.top + r.height / 2 - 10) + "px";
+  document.body.appendChild(f);
+  setTimeout(() => f.remove(), 1300);
+}
+function confetti(under) {
+  const root = fxRoot(under);
+  const N = GFX_LOW ? 8 : 26; // меньше нод — меньше пейнт/композит на бюджетниках
+  for (let i = 0; i < N; i++) {
+    const d = document.createElement("div");
+    d.className = "confetti";
+    d.style.background = `hsl(${Math.random() * 360},90%,60%)`;
+    d.style.setProperty("--dx", (Math.random() * 360 - 180) + "px");
+    d.style.setProperty("--dy", (Math.random() * 300 - 60) + "px");
+    root.appendChild(d);
+    setTimeout(() => d.remove(), 1200);
+  }
+}
+// разлетающиеся эмодзи выигранного ресурса + блёстки + золотое кольцо;
+// по умолчанию из центра барабана, fromEl — из любого элемента (VFX кнопок)
+function emojiBurst(emoji, n, big, fromEl, under) {
+  if (GFX_LOW) n = Math.min(n, 8); // меньше крупных эмодзи с трансформами на бюджетниках
+  const root = fxRoot(under);
+  const box = (fromEl || document.getElementById("board")).getBoundingClientRect();
+  const cx = box.left + box.width / 2, cy = box.top + box.height / 2;
+  const ring = document.createElement("div");
+  ring.className = "ring"; ring.style.left = cx + "px"; ring.style.top = cy + "px";
+  root.appendChild(ring);
+  setTimeout(() => ring.remove(), 700);
+  const pool = big ? [emoji, emoji, "✨", "⭐", "💫"] : [emoji, emoji, emoji, "✨"];
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement("span");
+    d.className = "burst";
+    d.textContent = pool[Math.floor(Math.random() * pool.length)];
+    const a = Math.random() * Math.PI * 2, dist = 70 + Math.random() * (big ? 160 : 110);
+    d.style.left = cx + "px"; d.style.top = cy + "px";
+    d.style.fontSize = (40 + Math.random() * 32) + "px";
+    d.style.setProperty("--dx", Math.cos(a) * dist + "px");
+    d.style.setProperty("--dy", (Math.sin(a) * dist - 30) + "px");
+    d.style.setProperty("--rot", (Math.random() * 720 - 360) + "deg");
+    d.style.setProperty("--sc", (.5 + Math.random() * .9).toFixed(2));
+    d.style.animationDelay = (Math.random() * .12) + "s";
+    root.appendChild(d);
+    setTimeout(() => d.remove(), 1600);
+  }
+}
+
+// открыто ли какое-либо модальное окно (гача/магазин/прокачка/перерождение/спины/бонус)
+const overlayOpen = () => !!document.querySelector(".overlay.show");
+
+async function doSpin(durMul, handY) {
+  // бонус выпал — барабан заморожен, пока игрок не разберётся с окном награды
+  if (bonusLanded) { if (handY != null) knobTo(0, true); return; }
+  // туториал: спин разрешён только на «свайп»-шагах (где задан форс-исход)
+  if (TUT.active && !TUT.force) { if (handY != null) knobTo(0, true); return; }
+  if (spinning || S.spins < 1) {
+    if (S.spins < 1) {
+      const b = document.getElementById("spinsBar");
+      b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash");
+      say("low", "😿");
+      if (!TUT.active) spinsOverlay.classList.add("show"); // окно покупки спинов (v11)
+    }
+    if (handY != null) knobTo(0, true);
+    return;
+  }
+  spinning = true;
+  S.spins--; S.totalSpins++; S.obSpins++; // obSpins — счётчик для вех онбординга (v15)
+  if (!TUT.active) dailyProgress("spin", 1); // дейли «покрути N раз» (туторные спины не считаем)
+  // winline НЕ очищаем: прошлый вин висит, пока крутятся барабаны (feel.md §7)
+  document.querySelectorAll(".cell.hit").forEach(c => c.classList.remove("hit"));
+  update();
+  if (TUT.active) tutHide(); // темнота не должна прятать крутящиеся барабаны
+  // целевые символы решаются заранее → знаем, нужен ли «прогрев» третьего барабана;
+  // туториал форсит исход — скриптованная тройка без рандома
+  const forced = TUT.force ? SYMS.find(s => s.id === TUT.force) : null;
+  const targets = reels.map(() => forced || randSym());
+  // бонус 💎 (v12.2): независимый ролл на спин (не в туториале) → 3×💎 на линии →
+  // окно рекламы (balance.md §8). Имеет приоритет над wild-полосой, её не тратит.
+  // v13: НЕ выпадает, если открыто любое окно (автоспин крутит на фоне) — окно
+  // бонуса не должно всплывать поверх гачи/магазина и т.п.
+  const bonusHit = !forced && !TUT.active && !overlayOpen() && Math.random() < BONUS_P;
+  // бусты-символы (v13.5): как бонус, но без окна — 3-в-ряд → инап применяется сразу.
+  // каждый из 3 бустов — независимый ролл BOOST_P; если совпали несколько, берём один
+  // случайный. Бонус в приоритете, тратить wild-полосу не должны (else-if). balance.md §9
+  let boostHit = null;
+  // инапы (бусты) НЕ выигрываются до конца тутора по автоспину (2-е перерождение → L3,
+  // v15.4): не вываливаем монетизационные плюшки на новичка (фидбек: «3 турбо подряд
+  // на 1-м туториальном перерождении»). Гейт по `autoTutDone` — точный маркер «тутор
+  // автоспина пройден»; грандфазер-сейв (L29) его уже имеет → у автора бусты работают
+  if (!bonusHit && !forced && !TUT.active && !overlayOpen() && S.autoTutDone) {
+    const hits = BOOST_SYMS.filter(() => Math.random() < BOOST_P);
+    if (hits.length) boostHit = hits[(Math.random() * hits.length) | 0];
+  }
+  if (bonusHit) {
+    targets[0] = targets[1] = targets[2] = BONUS;
+    dailyProgress("bonus", 1); addTrackXp(BONUS_XP); // 💎-бонф кормит дейли + шкалу (пассив)
+  } else if (boostHit) {
+    targets[0] = targets[1] = targets[2] = boostHit;
+  } else if (!forced && S.wildStreak > 0) {
+    // wild-полоса (магазин §7): 1-й барабан принудительно ⚡ на N спинов
+    targets[0] = WILD; S.wildStreak--;
+  } else if (!forced) {
+    // билет 🎟️ (v14): «мусором» на проигрышном спине → +1 билет в Колесу экспы (§10).
+    // Если билет не упал — «честные» декорации спец-символов (v13.6)
+    if (!tryTicketDrop(targets)) decorateSpecials(targets);
+  }
+  // прогрев: первые два СОВМЕСТИМЫ (равны или среди них wild) → томим третий.
+  // heatSym = подразумеваемый ресурс (определяет тир длительности)
+  const heatSym = compatPair(targets[0], targets[1]);
+  const heatMul = heatSym ? (heatSym.id === "harda" ? 1.45 : 1.9) : 1;
+  // рука-индикатор: возвращается за 90% времени барабанов (прогрев растягивает
+  // и руку) — взвод кончается ровно к стыковке третьего барабана (feel.md §1a)
+  if (handY != null) knobReturn(handY, (950 + 2 * 380) * durMul * heatMul * HAND_RETURN);
+  await Promise.all(reels.map((r, i) =>
+    spinReel(r, targets[i], i, i === 2 ? durMul * heatMul : durMul, i === 2 && !!heatSym)));
+  const won = evaluate();
+  if (won && !TUT.active) { dailyProgress("win", 1); addTrackXp(WIN_XP); } // дейли «выиграй N раз» + лёгкий пассив в шкалу
+  // прогрев был, а выигрыша нет — «вздох» третьего барабана вместо тишины
+  if (heatSym && !won) nearMiss();
+  // пассивная экспа: бар перерождения ползёт каждый спин (balance.md §4); ×2 от буста,
+  // ×expBoost() на первых 3 уровнях (туториальная секция быстрее, v15.2)
+  S.exp += Math.round(EXP_PASSIVE * global() * platMult() * tempMult() * expBoost() * metaBonus.expMul);
+  spinning = false;
+  update(); deferSave(); // сейв за кадр — не блокирует пейнт победы (v13.6)
+  if (TUT.active) tutOnSpinEnd();
+  else if (S.tutDone) onboardingCheck(); // вехи онбординга после основного туториала (v15)
+}
+
+// under=true (выигрыши барабана) → конфетти/виньетка в слой под окнами (v13)
+function bigCelebrate(under) {
+  sFanfare(); confetti(under); vibrate([60, 40, 120]);
+  vignette(under); // края экрана темнеют на секунду — «мир остановился» (skip в GFX_LOW)
+  // тряска трансформит весь #app → композит всего поддерева; на бюджетниках пропускаем
+  if (!GFX_LOW) {
+    const app = document.getElementById("app");
+    app.classList.remove("shake"); void app.offsetWidth; app.classList.add("shake");
+  }
+}
+
+// прогрев: подразумеваемый ресурс пары первых барабанов, если они совместимы
+// (равны или среди них wild), иначе null. Оба wild → редкий-тир (как «вот-вот бонус»)
+function compatPair(a, b) {
+  if (a.wild && b.wild) return SYMS[1];
+  if (a === b) return a;
+  if (a.wild) return b;
+  if (b.wild) return a;
+  return null;
+}
+// билет 🎟️ (v14): на проигрышном спине БЕЗ прогрева изредка роняем билет на 3-й
+// барабан → +1 билет (evaluate ловит TICKET). Не во время окна (автоспин на фоне).
+// Условия: база — проигрыш, первые два не образуют пару (иначе мешали бы прогреву
+// и могли бы дать ложную линию). targets[0]≠targets[1], оба не-wild ⇒ линия = мусор.
+function tryTicketDrop(targets) {
+  if (overlayOpen()) return false;                       // не во время открытого окна
+  if (lineWins(targets).length) return false;            // база — выигрыш, не трогаем
+  if (compatPair(targets[0], targets[1])) return false;  // строится прогрев — не мешаем
+  if (Math.random() > TICKET_DROP_P) return false;
+  targets[2] = TICKET;
+  return true;
+}
+// «честная» крутка (v13.6): на проигрышном спине изредка подменяем 1 (чаще) или
+// 2 (реже, «вот-вот») барабана спец-символом. НИКОГДА не 3 → не ложный вин (база
+// в targets — обычный символ, вес 0 у спецов; lineWins спецов и так не платит).
+// Не трогаем выигрышную базу — иначе срезали бы реальный винрейт.
+function decorateSpecials(targets) {
+  if (lineWins(targets).length) return;                       // база — выигрыш, не портим
+  if (Math.random() > SPECIAL_DECOY_P) return;
+  const sp = SPECIALS[(Math.random() * SPECIALS.length) | 0];
+  if (Math.random() < SPECIAL_PAIR_P) {
+    // ПАРА одинаковых спецов на первых двух барабанах (v15.3): compatPair даёт прогрев
+    // третьего → честный near-miss «два сошлись, третий мимо» + «вздох». НИКОГДА не 3
+    // (третий — база, спец платит только форс-роллом) → не ложный вин/бонус. Так
+    // «выпал один спец» больше НЕ значит «точно три» — колеса ощущается честной
+    targets[0] = targets[1] = sp;
+  } else {
+    targets[(Math.random() * 3) | 0] = sp;                    // одиночка «пролетела мимо», без прогрева
+  }
+}
+// итог линии с учётом wild: [] — мусор; [sym] — выигрыш ресурса (wild достроил линию);
+// все три БАЗОВЫХ ресурса — супер-вин 3×⚡ (balance.md §1a)
+function lineWins(centers) {
+  const reals = centers.filter(s => !s.wild);
+  if (reals.length === 0) return BASE_SYMS;                 // 3×⚡ — супер-вин всех трёх базовых
+  // спец-символ (бонус/буст) в линии обычным путём НЕ платит (только форс-ролл,
+  // обрабатывается до lineWins) — иначе wild+2 декора давали бы фантомный «выигрыш»
+  if (reals.some(isSpecial)) return [];
+  if (reals.every(s => s === reals[0])) return [reals[0]];  // не-wild совпали (wild подменил остальные)
+  return [];                                                 // два разных реальных = мусор
+}
+
+// возвращает true, если был выигрыш (для «вздоха» промаха после прогрева)
+function evaluate() {
+  const centers = reels.map(r => r.syms[r.center]);
+  // бонус 💎💎💎 на линии → окно рекламы (balance.md §8). Своя ветка до lineWins:
+  // символ bonus не-wild и из randSym не выпадает, сюда попадает только форс-роллом
+  if (centers.every(s => s === BONUS)) {
+    loseStreak = 0;
+    winline.classList.remove("old");
+    reels.forEach(r => r.strip.children[r.center].classList.add("hit"));
+    winTxt.textContent = "💎 GRAND BONUS!!!";
+    goldFlash(); say("bigwin", "🤩");
+    bonusLanded = true;          // заморозить барабаны до закрытия окна награды
+    setTimeout(showBonus, 650);  // дать увидеть 💎💎💎 на линии, потом окно рекламы
+    return true;
+  }
+  // буст-символ 🚀/🍀/✨ 3-в-ряд (v13.5): инап выигран — применяем сразу + крупный
+  // текст, без окна. Своя ветка до lineWins: буст не-wild, из randSym не выпадает (balance.md §9)
+  if (centers[0].boost && centers.every(s => s === centers[0])) {
+    grantBoost(centers[0]);
+    return true;
+  }
+  // билет 🎟️ выпал «мусором» (v14): +1 билет в Колесу экспы. Это не выигрыш линии
+  // (садится одиночкой на проигрышном спине), но приятная маленькая удача (§10)
+  if (centers.some(s => s === TICKET)) {
+    S.tickets++;
+    loseStreak = 0;
+    winline.classList.remove("old");
+    const ri = centers.findIndex(s => s === TICKET);
+    reels[ri].strip.children[reels[ri].center].classList.add("hit");
+    winTxt.textContent = "🎟️ +1 Star Wheel Ticket!";
+    floatText("+1 🎟️", "#ffcf5a", 0);
+    bigWinText("🎟️ +1 TICKET", "#ffcf5a", true);
+    emojiBurst("🎟️", 10, false, null, true);
+    vibrate(20); say("win", "🎟️");
+    return false; // не линия-вин: прогрева не было (tryTicketDrop гард) → вздоха не нужно
+  }
+  const wins = lineWins(centers);
+  if (wins.length === 0) {
+    loseStreak++;
+    winline.classList.add("old"); // прошлый вин тускнеет, но висит до нового
+    if (loseStreak >= 8 && Math.random() < .5) { say("lose", "😿"); loseStreak = 0; }
+    return false;
+  }
+  const g = global();
+  loseStreak = 0;
+  winline.classList.remove("old");
+  reels.forEach(r => r.strip.children[r.center].classList.add("hit"));
+
+  // бонус 3×⚡: базовые выплаты всех трёх ресурсов разом (balance.md §1a)
+  if (wins.length === 3) {
+    const h = Math.round(SYMS[0].pay * g * S.hardaMult * tempMult() * metaBonus.hardaMul);
+    const e = Math.round(SYMS[1].pay * g * platMult() * tempMult() * expBoost() * metaBonus.expMul);
+    const credited = Math.min(SYMS[2].pay, SPINS_MAX - S.spins); // кап жёсткий
+    S.harda += h; S.totalWon += h; S.exp += e; S.spins += credited;
+    winTxt.textContent = `⚡ SUPER WIN! +${fmt(h)} 🪙 +${fmt(e)} 🧿` + (credited > 0 ? ` +${credited} 🎲` : "");
+    goldFlash();
+    bigWinText("⚡ SUPER WIN!", "#ffd34d", true);
+    floatText("+" + fmt(h) + " 🪙", "#e8556d", -64);
+    floatText("+" + fmt(e) + " 🧿", "#9fd64e", 0);
+    if (credited > 0) floatText("+" + credited + " 🎲", "#4db8e8", 64);
+    emojiBurst("⚡", 26, true, null, true);
+    bigCelebrate(true); say("bigwin", "🤩");
+    return true;
+  }
+
+  const sym = wins[0];
+  if (sym.id === "harda") {
+    const amt = Math.round(sym.pay * g * S.hardaMult * tempMult() * metaBonus.hardaMul); // платина харду НЕ множит — валюта гачи; metaBonus (шкала анлоков) множит
+    S.harda += amt; S.totalWon += amt;
+    winCount("+", amt, " Coins");
+    goldFlash();
+    bigWinText("+" + fmt(amt) + " 🪙", "#e8556d", true);
+    floatText("+" + fmt(amt) + " 🪙", "#e8556d", 0);
+    emojiBurst("🪙", 14, false, null, true);
+    for (let i = 0; i < 4; i++) sCoin(i);
+    if (Math.random() < .4) say("win", "😸");
+  } else if (sym.id === "exp") {
+    const amt = Math.round(sym.pay * g * platMult() * tempMult() * expBoost() * metaBonus.expMul);
+    S.exp += amt;
+    winCount("🔥 GREAT +", amt, " EXP");
+    goldFlash();
+    bigWinText("+" + fmt(amt) + " 🧿", "#9fd64e", true);
+    floatText("+" + fmt(amt) + " 🧿", "#9fd64e", 0);
+    emojiBurst("🧿", 22, true, null, true);
+    bigCelebrate(true); say("bigwin", "🤩");
+  } else if (sym.id === "spins") {
+    // фикс +10 (прокачка спинов убрана 2026-06-13 — прокачка только харду)
+    const pay = sym.pay;
+    const credited = Math.min(pay, SPINS_MAX - S.spins); // кап жёсткий, излишек сгорает
+    S.spins += credited;
+    if (credited > 0) winCount("🔥 GREAT +", credited, " Energy");
+    else winTxt.textContent = "🎲 Energy already full!";
+    goldFlash();
+    if (credited > 0) bigWinText("+" + credited + " 🎲", "#4db8e8", true);
+    if (credited > 0) floatText("+" + credited + " 🎲", "#4db8e8", 0);
+    emojiBurst("🎲", 22, true, null, true);
+    bigCelebrate(true); say("bigwin", "🤩");
+  }
+  return true;
+}
+
+// буст выигран на барабанах 3-в-ряд (v13.5): применить инап сразу + крупный текст.
+// Длительности короче магазинных: турбо тир2/1мин, wild +10 спинов, ×2/1мин (balance.md §9)
+function grantBoost(sym) {
+  loseStreak = 0;
+  winline.classList.remove("old");
+  reels.forEach(r => r.strip.children[r.center].classList.add("hit"));
+  let txt, big;
+  if (sym.id === "btTurbo") {
+    S.turboTier = 2; S.turboUntil = Date.now() + WIN_BOOST_MS;
+    txt = "🚀 TURBO AUTO-PLAY WON!"; big = "🚀 TURBO ×2";
+  } else if (sym.id === "btWild") {
+    S.wildStreak += WIN_WILD_STREAK;
+    txt = `🍀 LUCKY STREAK · +${WIN_WILD_STREAK} spins with ⚡!`; big = "🍀 +" + WIN_WILD_STREAK + " WILD";
+  } else {
+    S.mult2Until = Date.now() + WIN_BOOST_MS;
+    txt = "✨ ×2 COINS & EXP WON!"; big = "✨ ×2";
+  }
+  winTxt.textContent = txt;
+  goldFlash();
+  bigWinText(big, "#ffd34d", true);
+  emojiBurst(sym.emoji, 24, true, null, true);
+  bigCelebrate(true); say("bigwin", "🤩");
+}
+
+/* ═══════════ натяжение лент от рычага (каскад слева-направо) ═══════════ */
+// панель стоит на месте; ленты барабанов прокручиваются вниз: левый отзывается
+// первым и глубже, правые догоняют с запаздыванием
+const TENSION_DEPTH = [16, 12, 8];   // px на полном ходу рычага
+const TENSION_LAG   = [0.4, 0.25, 0.15]; // скорость следования за рычагом
+let tensionTarget = 0, tensionRAF = null;
+function tensionFrame() {
+  let active = false;
+  reels.forEach((r, i) => {
+    // пружина остановки ещё пишет transform (хвост после resolve) — не мешаем ей
+    const busy = spinning || r.spring;
+    const goal = busy ? 0 : tensionTarget * TENSION_DEPTH[i];
+    r.tension += (goal - r.tension) * TENSION_LAG[i];
+    if (Math.abs(goal - r.tension) > .1) active = true; else r.tension = goal;
+    if (!busy) r.strip.style.transform = `translateY(${r.y + r.tension}px)`;
+  });
+  tensionRAF = (active || tensionTarget > 0) ? requestAnimationFrame(tensionFrame) : null;
+}
+function setTension(t) {
+  tensionTarget = t;
+  if (!tensionRAF) tensionRAF = requestAnimationFrame(tensionFrame);
+}
+
+/* ═══════════ рука-рычаг ═══════════ */
+const rail = document.getElementById("rail"), knob = document.getElementById("knob");
+let drag = null;
+const knobRange = () => rail.clientHeight - knob.offsetHeight - 8;
+
+function knobTo(y, anim) {
+  knob.classList.toggle("back", !!anim);
+  knob.style.top = (4 + y) + "px";
+}
+
+// возврат руки — индикатор «барабан крутится»: перехватить нельзя, пока идёт взвод.
+// Длительность = 90% времени барабанов (HAND_RETURN): третий барабан стыкуется на
+// 82% номинала, взвод кончается на 90%×90% = 81% — рука готова ровно к стыковке,
+// мёртвого времени нет. Кривая «взвода»: мягкий старт → разгон → рывок во второй
+// половине (ease-in t²), дальше скорость идёт пружине. Отскок у верха — косметика
+// (knobSpring): рука уже боеспособна, новый жест отменяет его, как пружины барабанов
+const HAND_RETURN = .9;
+let knobRAF = null, knobSpring = null;
+function knobReturn(fromY, durMs) {
+  if (knobRAF) cancelAnimationFrame(knobRAF);
+  if (knobSpring) { cancelAnimationFrame(knobSpring); knobSpring = null; }
+  knob.classList.remove("back");
+  const t0 = performance.now(), CUT = .9;
+  (function frame(now) {
+    const t = Math.min(1, (now - t0) / durMs);
+    if (t < CUT) {
+      knobTo(fromY * (1 - t * t)); // ease-in-quad: трогается заметно, рывок во второй половине
+      knobRAF = requestAnimationFrame(frame);
+      return;
+    }
+    knobRAF = null; // взвод окончен — рука свободна, отскок дотухает фоном
+    let y = fromY * (1 - CUT * CUT);
+    let v = -fromY * 2 * CUT / durMs; // px/мс, продолжаем с текущей скоростью
+    let last = now;
+    const K = 0.0003, C = 0.02; // трение выше барабанного: один короткий отскок у верха
+    (function springFrame(n) {
+      const dt = Math.min(32, n - last); last = n;
+      v += (K * (0 - y) - C * v) * dt;
+      y += v * dt;
+      if (Math.abs(y) < .4 && Math.abs(v) < .005) { knobTo(0); knobSpring = null; return; }
+      knobTo(y);
+      knobSpring = requestAnimationFrame(springFrame);
+    })(now);
+  })(t0);
+}
+knob.addEventListener("pointerdown", e => {
+  if (spinning || knobRAF) return; // рука взводится = барабан занят, перехват запрещён
+  if (S.spins < 1) { doSpin(1); return; }
+  ac(); // разблокировать звук жестом
+  if (knobSpring) { cancelAnimationFrame(knobSpring); knobSpring = null; knobTo(0); }
+  knob.setPointerCapture(e.pointerId);
+  drag = { startY: e.clientY, y: 0, hist: [[e.clientY, performance.now()]], armed: false };
+  knob.classList.remove("back");
+});
+knob.addEventListener("pointermove", e => {
+  if (!drag) return;
+  drag.y = Math.max(0, Math.min(knobRange(), e.clientY - drag.startY));
+  drag.hist.push([e.clientY, performance.now()]);
+  if (drag.hist.length > 6) drag.hist.shift();
+  knobTo(drag.y);
+  const pull = drag.y / knobRange();
+  setTension(pull);
+  if (pull >= .6 && !drag.armed) { drag.armed = true; sTick(); vibrate(20); }
+  if (pull < .6) drag.armed = false;
+});
+function dragEnd() {
+  if (!drag) return;
+  const pull = drag.y / knobRange(), handY = drag.y;
+  let speed = 0;
+  if (drag.hist.length > 1) {
+    const [y0, t0] = drag.hist[0], [y1, t1] = drag.hist[drag.hist.length - 1];
+    speed = t1 > t0 ? Math.max(0, (y1 - y0) / (t1 - t0)) : 0; // px/ms вниз
+  }
+  drag = null;
+  setTension(0);
+  if (pull >= .6) {
+    // кноб НЕ отстреливает назад — doSpin поведёт его руки-индикатором на время спина
+    const durMul = Math.max(.7, Math.min(1.35, 1.35 - speed * .25));
+    doSpin(durMul, handY);
+  } else {
+    knobTo(0, true); // недотянул — пружина назад как раньше
+  }
+}
+knob.addEventListener("pointerup", dragEnd);
+knob.addEventListener("pointercancel", dragEnd);
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") { e.preventDefault(); if (!knobRAF) doSpin(.9); }
+});
+
+/* ═══════════ автоспин ═══════════ */
+const autoBtn = document.getElementById("autoBtn");
+autoBtn.addEventListener("click", () => {
+  S.auto = !S.auto; ac(); update(); save();
+});
+// автоспин: цена та же, медленность — в самих барабанах (durMul 2.2 против ручных
+// 0.7–1.35). Руку автоспин НЕ задействует — рука только про ручную игру.
+// «турбо-автоспин» (нормальная скорость барабанов) — будущий инап (balance.md §2a)
+const AUTO_DURMUL = 2.2;
+// турбо-бust (магазин §7): durMul авто = turboMul() — медленный по умолчанию,
+// тир1 = скорость руки (1.0), тир2 = вдвое быстрее (0.5), пока активен таймер
+setInterval(() => {
+  if (S.auto && S.autoUnlocked && !spinning && S.spins >= 1
+      && !bonusOverlay.classList.contains("show")) doSpin(turboMul());
+}, 300);
+
+/* ═══════════ реген спинов ═══════════ */
+function regen() {
+  const now = Date.now();
+  if (S.spins >= SPINS_MAX) { S.lastRegen = now; return; }
+  while (now - S.lastRegen >= REGEN_MS && S.spins < SPINS_MAX) {
+    S.spins++; S.lastRegen += REGEN_MS;
+  }
+  if (S.spins >= SPINS_MAX) S.lastRegen = now;
+}
+setInterval(() => { regen(); update(); }, 1000);
+
+/* ═══════════ прокачка ═══════════ */
+const upgOverlay = document.getElementById("upgOverlay");
+document.getElementById("upgBtn").addEventListener("click", () => {
+  upgOverlay.classList.add("show"); update();
+  if (TUT.step === "upgOpen") tutGoto("upgBuy");
+});
+document.getElementById("upgClose").addEventListener("click", () => {
+  upgOverlay.classList.remove("show");
+  if (TUT.step === "upgClose") tutGoto("swipe2");
+});
+// прокачка усиливает ТОЛЬКО харду (+50% за покупку); экспа/спины убраны
+// из прокачки (решение 2026-06-13, balance.md §3)
+function doUpg() {
+  const cost = upgCost();
+  if (S.upgCount >= UPG_MAX || S.harda < cost) return;
+  S.harda -= cost; S.upgCount++; S.hardaMult += .5;
+  document.getElementById("upgLog").textContent = "+50% Coins! Now x" + S.hardaMult;
+  sCoin(0); sCoin(2); vibrate(30);
+  emojiBurst("🪙", 10, false, document.getElementById("upgHarda")); // VFX покупки
+  update(); save();
+  if (TUT.step === "upgBuy") tutGoto("upgClose");
+}
+document.getElementById("upgHarda").addEventListener("click", doUpg);
+// ad/⭐ buy: не хватает харды → реклама ИЛИ 10 звёзд → прокачка (общая выдача для обеих кнопок)
+function upgGrant() {
+  if (S.upgCount >= UPG_MAX) return;             // повторная проверка после показа/оплаты
+  S.upgCount++; S.hardaMult += .5;
+  document.getElementById("upgLog").textContent = "+50% Coins. Now x" + S.hardaMult;
+  sCoin(0); sCoin(2); vibrate(30);
+  emojiBurst("✨", 10, false, document.getElementById("upgAd"));
+  update(); save();
+  if (TUT.step === "upgBuy") tutGoto("upgClose");
+}
+const upgLogFail = msg => () => { document.getElementById("upgLog").textContent = msg; };
+document.getElementById("upgAd").addEventListener("click", () => {
+  if (S.upgCount >= UPG_MAX) return;
+  showAd(upgGrant, upgLogFail("Ad failed to load — try again later"));
+});
+document.getElementById("upgStars").addEventListener("click", () => {
+  if (S.upgCount >= UPG_MAX) return;
+  buyWithStars("upg", upgGrant, upgLogFail("Payment failed — try again later"));
+});
+
+/* ═══════════ перерождение ═══════════ */
+const rbOverlay = document.getElementById("rbOverlay");
+document.getElementById("rebirthBtn").addEventListener("click", () => {
+  const t = overTiers();
+  document.getElementById("rbInfo").textContent =
+    `EXP: ${fmt(S.exp)} / ${fmt(goal())}. ` +
+    (S.exp >= goal() ? (t ? `Overripe ×${t}!` : "Ready to ascend!") : "Not enough yet.");
+  document.getElementById("rbMult").textContent = "x" + fmt(2 ** S.level);
+  // перезрел: можно не жать сразу — экспа сверх цели копится в стартовую харду
+  document.getElementById("rbOver").textContent = t > 0
+    ? `🎁 Overripe ×${t}: start next run with Coins for ${t} Collection roll${t === 1 ? "" : "s"}` +
+      (t >= OVER_MAX ? " (max!)" : ". Each +50% of the goal = +1 more (max 4)")
+    : `🎁 Overripe: EXP above the goal isn't lost — each +50% of the goal = starting Coins for 1 Collection roll (max 4)`;
+  document.getElementById("rbGo").disabled = S.exp < goal();
+  rbOverlay.classList.add("show");
+  if (TUT.step === "rebirthTut") miniTutEnd(); // снять блокеры — окно перерождения живое (v15)
+});
+document.getElementById("rbClose").addEventListener("click", () => rbOverlay.classList.remove("show"));
+document.getElementById("rbGo").addEventListener("click", () => {
+  if (S.exp < goal()) return;
+  const tiers = overTiers(); // считаем ДО сброса экспы и повышения уровня
+  S.level++; S.exp = 0;
+  S.upgCount = 0; S.hardaMult = 1;
+  S.spins = SPINS_MAX;
+  addTrackXp(ASCEND_XP); dailyProgress("ascend", 1); // перерождение кормит шкалу анлоков + дейли
+  S.obSpins = 0; // веха: считаем спины после перерождения заново (автоспин на 3-м, v15)
+  // перезрел → стартовая харда: тир × цена ролла УЖЕ нового уровня (balance.md §4)
+  S.harda = tiers * rollCost();
+  rbOverlay.classList.remove("show");
+  sFanfare(); confetti(); confetti(); vibrate([80, 50, 80, 50, 200]);
+  say("rebirth", "🤩");
+  if (tiers > 0) floatAt(document.getElementById("hardaVal").parentElement,
+    `🎁 +${fmt(S.harda)} 🪙`, "#e8556d");
+  update(); save();
+  // онбординг (v15): автоспин — на 2-м перерождении (+3 спина), колеса — на 3-м.
+  // Проверяем после паузы (фанфара отыграет), мини-туторы — в onboardingCheck()
+  setTimeout(onboardingCheck, 900);
+});
+
+/* ═══════════ Колеса экспы (v14, balance.md §10) ═══════════ */
+// харда→опыт-сток на лейте: билет 🎟️ (дроп на барабанах / покупка за харду) → крутка
+// сегментного колеса → доля goal() опытом. Билеты переживают перерождение.
+// Исход решён ДО анимации (принцип feel.md №1) — колесо лишь презентует результат.
+const wheelOverlay = document.getElementById("wheelOverlay");
+const rltState = document.getElementById("rltState"), rltLog = document.getElementById("rltLog");
+const rltSpinBtn = document.getElementById("rltSpin"), rltAllBtn = document.getElementById("rltSpinAll");
+const wheelEl = document.getElementById("wheel");
+let wheelRot = 0; // накопленный угол колеса — всегда крутим вперёд
+
+// смайлик сектора по тиру (m): бонус 💎 (×10), 🔥 (×3+), 🌟 (×2+), базовый 🧿
+const wheelEmoji = seg => seg.m >= 10 ? "💎" : seg.m >= 3 ? "🔥" : seg.m >= 2 ? "🌟" : "🧿";
+// строим колесо — все секторы фиолетовые, ОДИН жёлтый бигвин (💎) — при открытии
+function buildWheel() {
+  const slice = 360 / WHEEL.length;
+  const stops = WHEEL.map((seg, i) => {
+    const c = rltIsBonus(seg) ? "#e0b53a" : (i % 2 ? "#5a2c8a" : "#7a3fb0"); // один жёлтый бигвин, остальные фиолетовые
+    return `${c} ${i * slice}deg ${(i + 1) * slice}deg`;
+  });
+  wheelEl.style.background = `conic-gradient(${stops.join(",")})`;
+  wheelEl.querySelectorAll(".wlabel").forEach(e => e.remove());
+  WHEEL.forEach((seg, i) => {
+    const ang = i * slice + slice / 2;
+    const lab = document.createElement("div");
+    lab.className = "wlabel";
+    // встать у внешнего радиуса под углом сектора, смайлик оставить вертикальным
+    lab.style.transform = `rotate(${ang}deg) translateY(-92px) rotate(${-ang}deg)`;
+    lab.innerHTML = `<span>${wheelEmoji(seg)}</span>`;
+    wheelEl.appendChild(lab);
+  });
+}
+
+// звук крутки колеса: тики редеют к концу (колесо тормозит, ease-out) — как стрекот
+function rltTicks(dur) {
+  const K = Math.max(18, Math.round(dur / 110));
+  for (let k = 1; k <= K; k++) {
+    const t = dur * (1 - (1 - k / K) ** 2.3); // ранние тики чаще, поздние реже
+    setTimeout(sTick, t);
+  }
+}
+// доворачиваем колесо так, чтобы сектор idx встал под верхнюю стрелку (всегда вперёд)
+function spinWheelTo(idx, dur, done) {
+  const slice = 360 / WHEEL.length;
+  const targetMod = (360 - (idx * slice + slice / 2)) % 360;
+  let cur = wheelRot % 360; if (cur < 0) cur += 360;
+  const delta = (targetMod - cur + 360) % 360;
+  wheelRot += 5 * 360 + delta; // 5 полных оборотов + доводка до сектора
+  wheelEl.style.transition = `transform ${dur}ms cubic-bezier(.12,.66,.16,1)`;
+  wheelEl.style.transform = `rotate(${wheelRot}deg)`;
+  rltTicks(dur);
+  setTimeout(done, dur);
+}
+// крупный текст результата поверх колеса (текст пишем на эффекте, не на секторах)
+function rltResultFx(txt, color, big) {
+  const wrap = document.getElementById("wheelWrap");
+  const el = document.createElement("div");
+  el.className = "rltfx" + (big ? " big" : "");
+  el.textContent = txt; el.style.color = color;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+function updateWheel() {
+  const cost = ticketCost();
+  rltState.innerHTML = `🎟️ Tickets: <b>${S.tickets}</b> · ticket price: 🪙 ${fmt(cost)}`;
+  // одиночная крутка: свой билет, иначе «купить билет и крутить» за харду
+  if (S.tickets >= 1) { rltSpinBtn.textContent = "SPIN · 1 🎟️"; rltSpinBtn.disabled = rltSpinning; }
+  else if (S.harda >= cost) { rltSpinBtn.textContent = `BUY TICKET & SPIN · ${fmt(cost)} 🪙`; rltSpinBtn.disabled = rltSpinning; }
+  else { rltSpinBtn.textContent = `need 🎟️ or 🪙 ${fmt(cost)}`; rltSpinBtn.disabled = true; }
+  rltSpinBtn.classList.toggle("blink", !rltSpinning && (S.tickets >= 1 || S.harda >= cost));
+  // крутить всё: свои билеты + докупка на всю харду
+  const buy = Math.min(MULTI_MAX, Math.floor(S.harda / cost));
+  const k = Math.min(MULTI_MAX, S.tickets + buy);
+  if (k >= 2) {
+    rltAllBtn.style.display = "";
+    rltAllBtn.textContent = `SPIN ALL ×${k}` + (buy ? ` (buy ${buy})` : "");
+    rltAllBtn.disabled = rltSpinning;
+  } else rltAllBtn.style.display = "none";
+}
+
+// одиночная крутка
+function rltSpinOne() {
+  if (rltSpinning) return;
+  const cost = ticketCost();
+  if (S.tickets >= 1) S.tickets--;
+  else if (S.harda >= cost) S.harda -= cost;  // нет билета — покупаем за харду и крутим
+  else return;
+  rltSpinning = true;
+  dailyProgress("wheel", 1); // дейли «прокрути Колесо N×»
+  updateWheel(); update(); save();
+  const idx = Math.floor(Math.random() * WHEEL.length);
+  emojiBurst("🎟️", 8, false, rltSpinBtn);
+  spinWheelTo(idx, 4200, () => {
+    const gain = wheelExp(WHEEL[idx]), jp = rltIsBonus(WHEEL[idx]);
+    S.exp += gain;
+    sThud();
+    const wrap = document.getElementById("wheelWrap");
+    if (jp) { sFanfare(); confetti(); vibrate([60, 40, 120]); emojiBurst("💎", 22, true, wrap); }
+    else { for (let i = 0; i < 3; i++) sCoin(i); vibrate(20); emojiBurst("🧿", 14, false, wrap); }
+    rltResultFx((jp ? "💎 " : "") + `+${fmt(gain)} 🧿`, jp ? "#ffd34d" : "#9fd64e", jp);
+    rltLog.textContent = (jp ? "🎉 STAR WHEEL BONUS! " : "✨ ") + `+${fmt(gain)} 🧿 EXP!`;
+    rltSpinning = false;
+    updateWheel(); update(); save();
+  });
+}
+
+// крутить всё: свои билеты + докупка на всю харду — разом, монтаж, итог суммой
+function rltSpinAll() {
+  if (rltSpinning) return;
+  const cost = ticketCost();
+  const buy = Math.min(MULTI_MAX, Math.floor(S.harda / cost));
+  const k = Math.min(MULTI_MAX, S.tickets + buy);
+  if (k < 1) return;
+  const useTickets = Math.min(S.tickets, k);
+  S.tickets -= useTickets;
+  S.harda -= (k - useTickets) * cost;
+  rltSpinning = true;
+  dailyProgress("wheel", k); // дейли «прокрути Колесо N×» (мульти)
+  updateWheel(); update();
+  // исходы решены до анимации (принцип feel.md №1)
+  let total = 0, bonuss = 0, lastIdx = 0;
+  for (let i = 0; i < k; i++) {
+    const idx = Math.floor(Math.random() * WHEEL.length);
+    total += wheelExp(WHEEL[idx]);
+    if (rltIsBonus(WHEEL[idx])) bonuss++;
+    lastIdx = idx;
+  }
+  S.exp += total; save();
+  emojiBurst("🎟️", 16, true, rltAllBtn);
+  spinWheelTo(lastIdx, 2600, () => {
+    sFanfare(); confetti(); vibrate([60, 40, 120]);
+    emojiBurst("🧿", 22, true, document.getElementById("wheelWrap"));
+    rltResultFx(`+${fmt(total)} 🧿`, "#9fd64e", true);
+    rltLog.textContent = `🎟️ ${k} spins · +${fmt(total)} 🧿 EXP` + (bonuss ? ` · 🎉 bonuses: ${bonuss}` : "");
+    rltSpinning = false;
+    updateWheel(); update(); save();
+  });
+}
+
+document.getElementById("wheelBtn").addEventListener("click", () => {
+  if (rltSpinning) return;
+  buildWheel(); updateWheel(); rltLog.textContent = "";
+  wheelOverlay.classList.add("show");
+});
+document.getElementById("rltClose").addEventListener("click", () => {
+  if (rltSpinning) return;
+  wheelOverlay.classList.remove("show");
+});
+rltSpinBtn.addEventListener("click", rltSpinOne);
+rltAllBtn.addEventListener("click", rltSpinAll);
+
+/* ═══════════ Шкала анлоков + дейлики (progression.md) ═══════════ */
+// Видимая конечная лестница вех — заменяет скрытые триггеры онбординга и убранное Созвездие.
+// Track-опыт капает из дейликов (основное) + лёгкий пассив (вины/перерождение/бонус). Feature-
+// ступени открывают фичи (флаги rebirth/auto/shop/wheel) через те же мини-туторы (onboardingCheck).
+// Бонус-ступени дают перм. exp/coin % (кормят metaBonus) или расходники. Числа — демо, тюнятся в balance.md.
+const ASCEND_XP = 25, WIN_XP = 1, BONUS_XP = 4, DAILY_ALL_BONUS = 30;
+// ступени: feat (какая фича) · exp/coin (перм. %) · spins/tickets/turbo (расходник) · patron (exp+coin)
+const TRACK = [
+  { cost: 40,   kind: "feat",    feat: "rebirth", ic: "♻️", name: "Ascension unlocked" },
+  { cost: 100,  kind: "spins",   val: 5,          ic: "🎲", name: "+5 Energy" },
+  { cost: 170,  kind: "feat",    feat: "auto",    ic: "🐢", name: "Auto-play unlocked" },
+  { cost: 240,  kind: "exp",     val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
+  { cost: 320,  kind: "feat",    feat: "shop",    ic: "🛒", name: "Shop unlocked" },
+  { cost: 410,  kind: "turbo",   val: 60,         ic: "🚀", name: "Turbo boost" },
+  { cost: 520,  kind: "coin",    val: 0.03,       ic: "🪙", name: "+3% Coins forever" },
+  { cost: 650,  kind: "feat",    feat: "wheel",   ic: "🎟️", name: "Star Wheel unlocked" },
+  { cost: 820,  kind: "exp",     val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
+  { cost: 1020, kind: "tickets", val: 5,          ic: "🎟️", name: "+5 Tickets" },
+  { cost: 1260, kind: "coin",    val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
+  { cost: 1540, kind: "exp",     val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
+  { cost: 1860, kind: "spins",   val: 10,         ic: "🎲", name: "+10 Energy" },
+  { cost: 2240, kind: "coin",    val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
+  { cost: 2680, kind: "exp",     val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
+  { cost: 3200, kind: "patron",  val: 0.10,       ic: "🏆", name: "Patron — +10% EXP & Coins" },
+];
+const FEAT_FLAG = { rebirth: "rebirthUnlocked", auto: "autoUnlocked", shop: "shopUnlocked", wheel: "wheelUnlocked" };
+
+// metaBonus — перм. множители exp/coin из пройденных бонус-ступеней. НЕ хранится в сейве (считаем из track.tier).
+let metaBonus = { expMul: 1, hardaMul: 1 };
+function recomputeMeta() {
+  let em = 0, hm = 0;
+  for (let i = 0; i < S.track.tier && i < TRACK.length; i++) {
+    const r = TRACK[i];
+    if (r.kind === "exp") em += r.val;
+    else if (r.kind === "coin") hm += r.val;
+    else if (r.kind === "patron") { em += r.val; hm += r.val; }
+  }
+  metaBonus = { expMul: 1 + em, hardaMul: 1 + hm };
+}
+// расходник-ступени применяются сразу при прохождении; feature — через onboardingCheck (мини-тутор)
+function applyRungReward(r) {
+  if (r.kind === "spins") S.spins = Math.min(SPINS_MAX, S.spins + r.val);
+  else if (r.kind === "tickets") S.tickets += r.val;
+  else if (r.kind === "turbo") { S.turboUntil = Date.now() + r.val * 1000; S.turboTier = 2; }
+}
+// продвигаем tier, пока хватает xp; на feature-ступени стопаемся, пока её фича не открыта мини-тутором
+function trackAdvance() {
+  let promoted = false;
+  while (S.track.tier < TRACK.length) {
+    const r = TRACK[S.track.tier];
+    if (S.track.xp < r.cost) break;
+    if (r.kind === "feat" && !S[FEAT_FLAG[r.feat]]) break;
+    S.track.tier++;
+    applyRungReward(r);
+    if (r.kind === "exp" || r.kind === "coin" || r.kind === "patron") recomputeMeta();
+    promoted = true;
+  }
+  return promoted;
+}
+function addTrackXp(n) {
+  if (!n || n <= 0) return;
+  S.track.xp += n;
+  if (trackAdvance()) vibrate(30);
+  update();
+  if (trackOverlay.classList.contains("show")) renderTrack();
+}
+recomputeMeta();
+
+/* ── дейлики ── */
+// локальный день-индекс (смена в локальную полночь → перекат задач)
+function trackToday() { const d = new Date(); return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000); }
+const DAILY_POOL = [
+  { id: "spin",   need: 30, rew: 40, ic: "🎰", label: n => `Spin ${n} times` },
+  { id: "win",    need: 12, rew: 40, ic: "✨", label: n => `Win ${n} times` },
+  { id: "bonus",  need: 1,  rew: 45, ic: "💎", label: () => "Land a 💎 bonus" },
+  { id: "ascend", need: 1,  rew: 55, ic: "♻️", label: () => "Ascend once", feat: "rebirthUnlocked" },
+  { id: "roll",   need: 3,  rew: 50, ic: "💖", label: n => `Roll Collection ${n}×`, feat: "gachaUnlocked" },
+  { id: "wheel",  need: 3,  rew: 50, ic: "🎟️", label: n => `Spin Star Wheel ${n}×`, feat: "wheelUnlocked" },
+];
+function rollDailies(fromAd) {
+  const pool = DAILY_POOL.filter(t => !t.feat || S[t.feat]).slice(); // только из открытых фич
+  for (let i = pool.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+  S.daily.tasks = pool.slice(0, Math.min(3, pool.length)).map(t => ({
+    id: t.id, prog: 0, need: t.need, rew: t.rew, ic: t.ic, name: t.label(t.need), done: false, claimed: false
+  }));
+  S.daily.day = trackToday();
+  S.daily.allBonus = false;
+  S.daily.adReroll = !!fromAd;
+}
+function dailyEnsure() {
+  if (S.daily.day !== trackToday() || !S.daily.tasks || !S.daily.tasks.length) rollDailies(false);
+}
+function dailyProgress(id, amt) {
+  if (!S.daily || !S.daily.tasks) return;
+  let changed = false;
+  for (const t of S.daily.tasks) {
+    if (t.id === id && !t.done) {
+      t.prog = Math.min(t.need, t.prog + (amt || 1));
+      if (t.prog >= t.need) { t.done = true; vibrate(15); }
+      changed = true;
+    }
+  }
+  if (changed && trackOverlay.classList.contains("show")) renderTrack();
+}
+function claimDaily(i) {
+  const t = S.daily.tasks[i];
+  if (!t || !t.done || t.claimed) return;
+  t.claimed = true;
+  let xp = t.rew;
+  if (!S.daily.allBonus && S.daily.tasks.every(x => x.claimed)) { S.daily.allBonus = true; xp += DAILY_ALL_BONUS; } // все 3 → бонус
+  addTrackXp(xp);
+  vibrate(30);
+  renderTrack(); save();
+}
+
+/* ── отрисовка окна Goals ── */
+function rungSub(r) {
+  if (r.kind === "feat") return "Milestone unlock";
+  if (r.kind === "exp") return `+${Math.round(r.val * 100)}% EXP permanently`;
+  if (r.kind === "coin") return `+${Math.round(r.val * 100)}% Coins permanently`;
+  if (r.kind === "patron") return `+${Math.round(r.val * 100)}% EXP & Coins permanently`;
+  if (r.kind === "spins") return `+${r.val} Energy now`;
+  if (r.kind === "tickets") return `+${r.val} Tickets now`;
+  if (r.kind === "turbo") return "Turbo auto-play (1 min)";
+  return "";
+}
+function renderTrack() {
+  dailyEnsure();
+  let dh = "";
+  S.daily.tasks.forEach((t, i) => {
+    const pct = Math.min(100, t.prog / t.need * 100);
+    const btn = t.claimed
+      ? `<button class="trkClaim" disabled>Claimed ✓</button>`
+      : (t.done ? `<button class="trkClaim" data-claim="${i}">Claim +${t.rew} track XP</button>` : "");
+    dh += `<div class="trkDaily"><div class="d-row"><span class="d-name">${t.ic} ${t.name}</span>`
+        + `<span class="d-rew">${Math.min(t.prog, t.need)}/${t.need}</span></div>`
+        + `<div class="trkBar"><i style="width:${pct}%"></i></div>${btn}</div>`;
+  });
+  document.getElementById("trkDailies").innerHTML = dh;
+  const reroll = document.getElementById("trkRerollAd");
+  reroll.disabled = !!S.daily.adReroll;
+  reroll.textContent = S.daily.adReroll ? "🎬 New tasks used today" : "🎬 New tasks (watch ad)";
+  let lh = "";
+  TRACK.forEach((r, i) => {
+    const done = i < S.track.tier, cur = i === S.track.tier;
+    const prev = i > 0 ? TRACK[i - 1].cost : 0;
+    let state, cls;
+    if (done) { state = "✓"; cls = "done"; }
+    else if (cur) {
+      cls = "cur";
+      if (r.kind === "feat" && S.track.xp >= r.cost) state = "Ready"; // ждёт открытия фичи (тутор/перерождение)
+      else state = `${Math.max(0, Math.min(S.track.xp, r.cost) - prev)}/${r.cost - prev}`;
+    } else { state = "🔒"; cls = "lock"; }
+    lh += `<div class="trkRung ${cls}"><span class="r-ic">${r.ic}</span>`
+        + `<span class="r-body"><span class="r-name">${r.name}</span><span class="r-sub">${rungSub(r)}</span></span>`
+        + `<span class="r-state">${state}</span></div>`;
+  });
+  document.getElementById("trkLadder").innerHTML = lh;
+}
+
+const trackOverlay = document.getElementById("trackOverlay");
+document.getElementById("trackBtn").addEventListener("click", () => {
+  renderTrack();
+  trackOverlay.classList.add("show");
+});
+document.getElementById("trkClose").addEventListener("click", () => trackOverlay.classList.remove("show"));
+trackOverlay.addEventListener("click", e => { if (e.target === trackOverlay) trackOverlay.classList.remove("show"); });
+document.getElementById("trkDailies").addEventListener("click", e => {
+  const b = e.target.closest("[data-claim]"); if (!b) return;
+  claimDaily(+b.dataset.claim);
+});
+// реролл задач за рекламу — 1 раз в день (награда по досмотру; скип → ничего, без тупика)
+document.getElementById("trkRerollAd").addEventListener("click", () => {
+  if (S.daily.adReroll) return;
+  showAd(() => { rollDailies(true); renderTrack(); update(); save(); }, () => {});
+});
+
+/* ═══════════ гача-коллекция ═══════════ */
+// ролл без выбора (решение 2026-06-12 v2): колеса сначала выбирает девочку (1/9),
+// потом её карточку (1/9) — равномерно 1/81. Дубль — эффект DOUBLE и утешительные
+// спины (кап жёсткий), не харда. Полный сет → платиновая: +5% к экспе НАВСЕГДА
+// (аддитивно, переживает перерождение; харду НЕ трогает). balance.md §4a
+const rollCost = () => Math.round(GACHA_COST * GACHA_RATIO ** (S.level - 1));
+// дубль гачи даёт ОПЫТ (v13.3, было +1 спин): скейлится с уровнем перерождения как
+// все exp-источники — DUPE_EXP × global × platMult × tempMult ≈ несколько спинов
+// пассива. У опыта нет капа (спины капались и «сгорали»). balance.md §4a
+const DUPE_EXP = 200;
+const dupeExp = () => Math.round(DUPE_EXP * global() * platMult() * tempMult());
+// эмодзи карточек — детерминированные «рандомные»: внутри девочки не повторяются
+const CARD_EMOJI = ["🌸","🍓","🎀","🍰","💄","🌙","💎","🍷","🧁","🌺","🎶","🍒",
+  "💋","🦋","🌊","🔥","🍑","✨","🎧","🍭","🌈","🍾","💌","🌹","🍫","🎵","🪞","👠",
+  "💍","🛁","🌟","🍸","🎐","🧸","🪐","🩰"];
+const cardEmoji = (g, c) => CARD_EMOJI[(g * 13 + c * 5) % CARD_EMOJI.length];
+const PLAT_EMOJI = ["💝","💖","💘","💞","💓","💗","💕","❤️‍🔥","💟"];
+
+const gachaOverlay = document.getElementById("gachaOverlay");
+const gachaTitle = document.getElementById("gachaTitle"), gachaBody = document.getElementById("gachaBody");
+const gachaRoll = document.getElementById("gachaRoll"), gachaLog = document.getElementById("gachaLog");
+const gachaAd = document.getElementById("gachaAd");
+const gachaStars = document.getElementById("gachaStars");
+// видимость 🎬/⭐ в гаче всегда совпадает (обе появляются, когда не хватает на ролл)
+const setGachaAd = show => { gachaAd.style.display = gachaStars.style.display = show ? "" : "none"; };
+const gachaBack = document.getElementById("gachaBack");
+let gachaGirl = null;    // null = галерея страницы, число = глобальный индекс девочки (её карточки)
+let gachaPage = 0;       // какую страницу (9 девочек) смотрим; стрелки ◀▶ переключают (v13)
+let gachaSummary = null; // итоги мульти-ролла — показываются вместо галереи
+let rolling = false;     // идёт колеса — навигация и кнопки заморожены
+// пропуск анимации тапом (v13): gachaSkipFn — «промотать текущий ролл к результату»,
+// gachaTimers — все setTimeout'ы анимации (чистятся при пропуске)
+let gachaSkipFn = null, gachaTimers = [];
+function gachaTimer(fn, ms) {
+  const id = setTimeout(() => { gachaTimers = gachaTimers.filter(x => x !== id); fn(); }, ms);
+  gachaTimers.push(id); return id;
+}
+function clearGachaTimers() { gachaTimers.forEach(clearTimeout); gachaTimers = []; }
+
+/* страницы гачи (v13): страница p = девочки [p*9 .. p*9+8]. Страница «собрана»,
+   когда у всех 9 девочек есть платина. Открытых страниц = собранные + 1 текущая;
+   следующая за текущей — замок; дальше перейти нельзя. balance.md §4a */
+function ensureGirl(gi) {
+  if (!S.cards[gi]) S.cards[gi] = Array(9).fill(0);
+  if (S.plat[gi] == null) S.plat[gi] = false; // без ?? — компат со старыми webview
+}
+function ensurePage(p) { for (let g = p * 9; g < p * 9 + 9; g++) ensureGirl(g); }
+function pageComplete(p) {
+  for (let g = p * 9; g < p * 9 + 9; g++) if (!S.plat[g]) return false;
+  return true;
+}
+// текущая (последняя «настоящая») страница = первая несобранная; крутится только на ней
+function inProgressPage() { let p = 0; while (pageComplete(p)) p++; return p; }
+function gnavHtml(page, left, right) {
+  return `<div class="gnav">
+    <button class="gnavBtn" data-nav="-1"${left ? "" : " disabled"}>◀</button>
+    <span class="gnavLbl">Page ${page + 1}</span>
+    <button class="gnavBtn" data-nav="1"${right ? "" : " disabled"}>▶</button>
+  </div>`;
+}
+
+function renderGacha() {
+  if (galRAF && !gachaSummary) stopGalleryScroll(); // стоп авто-скролл вне итогов
+  if (gachaSummary) { renderGachaSummary(); return; }
+  if (gachaGirl === null) {
+    const inProg = inProgressPage();
+    const lockPage = inProg + 1;
+    if (gachaPage > lockPage) gachaPage = lockPage;
+    if (gachaPage < 0) gachaPage = 0;
+    // в заголовке — суммарный вечный бонус всех платин к экспе (5% за девочку)
+    const platPct = Math.round((platMult() - 1) * 100);
+    gachaTitle.textContent = `Collection 💖 · +${platPct}% EXP forever`;
+    const navLeft = gachaPage > 0, navRight = gachaPage < lockPage;
+    // страница-замок: следующая за текущей, ещё не открыта
+    if (gachaPage === lockPage) {
+      gachaBody.innerHTML = gnavHtml(gachaPage, navLeft, navRight) +
+        `<div class="gachaLock"><div class="lockico">🔒</div>
+          Collect everyone on page ${inProg + 1} — and new ones unlock here ✨</div>`;
+      gachaRoll.style.display = "none"; setGachaAd(false);
+      gachaBack.textContent = "close";
+      return;
+    }
+    ensurePage(gachaPage);
+    gachaBody.innerHTML = gnavHtml(gachaPage, navLeft, navRight) + `<div class="ggrid">` +
+      Array.from({ length: 9 }, (_, pos) => {
+        const i = gachaPage * 9 + pos, gd = girl(i);
+        const owned = S.cards[i].filter(n => n > 0).length;
+        return `<div class="girl${S.plat[i] ? " done" : ""}" data-g="${i}">
+          <div class="gava">${gd.ava}</div><div>${gd.name}</div>
+          <div class="gprog">${S.plat[i] ? "⭐ 10/10" : owned + "/9"}</div></div>`;
+      }).join("") + `</div>`;
+    // крутить можно ТОЛЬКО на текущей странице — на собранных кнопки нет (не фармить)
+    // одна кнопка (v13.4): крутит сразу на ВСЕ доступные роллы (k); отдельной «1 ролл» нет
+    const onActive = gachaPage === inProg;
+    const cost = rollCost(), k = onActive ? Math.min(MULTI_MAX, Math.floor(S.harda / cost)) : 0;
+    if (onActive) {
+      gachaRoll.style.display = "";
+      gachaRoll.textContent = k >= 2 ? `ROLL ×${k} · ${fmt(k * cost)} 🪙`
+                            : k === 1 ? `ROLL · ${fmt(cost)} 🪙`
+                            : `ROLL — ${fmt(cost)} 🪙`;
+      gachaRoll.disabled = rolling || k < 1;
+      gachaRoll.classList.toggle("blink", !rolling && k >= 1);
+      // не хватает даже на 1 ролл → 🎬 реклама или ⭐ звёзды дают ролл
+      setGachaAd(!rolling && k < 1);
+    } else {
+      gachaRoll.style.display = "none"; setGachaAd(false);
+    }
+    gachaBack.textContent = "close";
+  } else {
+    const i = gachaGirl;
+    gachaTitle.textContent = girl(i).ava + " " + girl(i).name;
+    let html = `<div class="cgrid">`;
+    for (let c = 0; c < 9; c++) {
+      const cnt = S.cards[i][c];
+      html += cnt > 0
+        ? `<div class="gcard"><div class="ce">${cardEmoji(i, c)}</div>img ${c + 1}${cnt > 1 ? " ×" + cnt : ""}</div>`
+        : `<div class="gcard no"><div class="ce">❓</div>img ${c + 1}</div>`;
+    }
+    html += S.plat[i]
+      ? `<div class="gcard gplat"><div class="ce">${PLAT_EMOJI[i % PLAT_EMOJI.length]}</div>PLATINUM CARD · VIDEO · +5% EXP forever</div>`
+      : `<div class="gcard gplat no"><div class="ce">🔒</div>collect all 9 — platinum card: +5% EXP forever</div>`;
+    gachaBody.innerHTML = html + `</div>`;
+    gachaRoll.style.display = "none";
+    setGachaAd(false);
+    gachaBack.textContent = "close"; // v15.1: со страницы девочки кнопка тоже полностью закрывает окно
+  }
+}
+
+// итоговое окно мульти-ролла: открытые карточки — горизонтальной авто-прокручиваемой
+// галереей (~3 видно, медленный скролл влево-вправо — все картинки можно рассмотреть);
+// плюс платины и обмен дублей на спины. balance.md §4a, feel.md §8a
+let galRAF = null, galPaused = false, galResumeTimer = null;
+function renderGachaSummary() {
+  const s = gachaSummary;
+  gachaTitle.textContent = `Results — ${s.rolls} rolls 💖`;
+  let html = "";
+  if (s.newCards.length) {
+    const cards = s.newCards.map(({ g, c }) =>
+      `<div class="galcard"><div class="ce">${cardEmoji(g, c)}</div>
+        <b>${girl(g).name}</b><span>img ${c + 1}</span></div>`).join("");
+    html += `<div class="galwrap"><div class="galstrip" id="galStrip">${cards}</div></div>`;
+    html += `<div class="sumrow">🎉 New cards: <b>${s.newCards.length}</b></div>`;
+  } else {
+    html += `<div class="sumrow">no new cards 😿 all duplicates</div>`;
+  }
+  s.plats.forEach(g =>
+    html += `<div class="sumrow plat">⭐ PLATINUM: ${girl(g).name}! +5% EXP forever</div>`);
+  html += `<div class="sumrow">💥 Duplicates: ${s.dupes}` +
+    (s.dupes ? ` → exchanged for <b>+${fmt(s.expGained)} 🧿 EXP</b>` : "") + `</div>`;
+  html += `<div class="sumrow"><small>spent ${fmt(s.spent)} 🪙</small></div>`;
+  gachaBody.innerHTML = html;
+  gachaRoll.style.display = "none";
+  setGachaAd(false);
+  gachaBack.textContent = "ok";
+  if (s.newCards.length) startGalleryScroll();
+}
+function stopGalleryScroll() {
+  if (galRAF) { cancelAnimationFrame(galRAF); galRAF = null; }
+  clearTimeout(galResumeTimer); galResumeTimer = null;
+  galPaused = false;
+}
+// медленный пинг-понг авто-скролл (через scrollLeft), чтобы все картинки можно было
+// рассмотреть; в любой момент можно схватить и листать свайпом — авто уступает руке
+// и возобновляется через ~2.5с простоя. Если всё влезло — авто не нужен, свайп есть
+function startGalleryScroll() {
+  stopGalleryScroll();
+  requestAnimationFrame(() => {
+    const wrap = document.querySelector(".galwrap");
+    const strip = document.getElementById("galStrip");
+    if (!wrap || !strip) return;
+    setupGalleryDrag(wrap);
+    if (strip.scrollWidth - wrap.clientWidth <= 0) return; // всё влезло — только свайп
+    let dir = 1, last = performance.now(), pos = wrap.scrollLeft;
+    const SPEED = 42; // px/сек — медленно
+    (function f(now) {
+      const dt = Math.min(50, now - last) / 1000; last = now;
+      const max = strip.scrollWidth - wrap.clientWidth;
+      if (galPaused) {
+        pos = wrap.scrollLeft;           // следуем за ручным свайпом, чтобы авто продолжил с него
+      } else {
+        pos += dir * SPEED * dt;
+        if (pos >= max) { pos = max; dir = -1; } else if (pos <= 0) { pos = 0; dir = 1; }
+        wrap.scrollLeft = pos;
+      }
+      galRAF = requestAnimationFrame(f);
+    })(last);
+  });
+}
+// тач — нативный скролл (пауза авто на время касания); мышь — ручной drag
+function setupGalleryDrag(wrap) {
+  const pause = () => { galPaused = true; clearTimeout(galResumeTimer); };
+  const resumeLater = () => {
+    clearTimeout(galResumeTimer);
+    galResumeTimer = setTimeout(() => { galPaused = false; }, 2500);
+  };
+  wrap.addEventListener("touchstart", pause, { passive: true });
+  wrap.addEventListener("touchend", resumeLater, { passive: true });
+  wrap.addEventListener("touchcancel", resumeLater, { passive: true });
+  let drag = null;
+  wrap.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "mouse") return; // тач уже листается нативно
+    drag = { x: e.clientX, left: wrap.scrollLeft };
+    wrap.classList.add("grabbing");
+    wrap.setPointerCapture(e.pointerId);
+    pause();
+  });
+  wrap.addEventListener("pointermove", e => {
+    if (drag) wrap.scrollLeft = drag.left - (e.clientX - drag.x);
+  });
+  const end = () => { if (drag) { drag = null; wrap.classList.remove("grabbing"); resumeLater(); } };
+  wrap.addEventListener("pointerup", end);
+  wrap.addEventListener("pointercancel", end);
+}
+
+// колеса: рамка цвета прогрева бежит по элементам слева-направо сверху-вниз,
+// несколько кругов, быстро → томительно (ease-in-quad по задержке между шагами)
+function wheel(items, targetIdx, loops, done) {
+  const total = loops * items.length + targetIdx;
+  let k = 0, cur = -1;
+  (function step() {
+    if (cur >= 0) items[cur].classList.remove("sel");
+    cur = k % items.length;
+    items[cur].classList.add("sel");
+    sTick();
+    if (k >= total) { done(items[cur]); return; }
+    const t = k / total; k++;
+    gachaTimer(step, 50 + 280 * t * t); // трекаем таймер — пропуск тапом его отменит
+  })();
+}
+
+const sDouble = () => { beep(200, .12, "square", .12); beep(150, .18, "square", .12, .1); beep(100, .3, "square", .1, .2); };
+// DOUBLE: под заголовком крупно показываем, СКОЛЬКО опыта дал дубль (v13.3)
+function doubleFx(gain) {
+  const d = document.createElement("div");
+  d.id = "doubleFx";
+  d.innerHTML = `<div class="dbltxt">DOUBLE!</div>` +
+    `<div class="dblsub">+${fmt(gain)} 🧿 EXP</div>`;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 1600);
+  const app = document.getElementById("app");
+  app.classList.remove("shake"); void app.offsetWidth; app.classList.add("shake");
+}
+
+function revealCard(g, c, cell) {
+  cell.classList.remove("sel");
+  if (S.cards[g][c] > 0) {
+    // дубль: DOUBLE на весь экран + тряска + разлёт 🧿 + утешительный ОПЫТ (скейлится с уровнем)
+    S.cards[g][c]++;
+    const gain = dupeExp();
+    S.exp += gain;
+    cell.classList.add("dupe");
+    sDouble(); vibrate([60, 40, 120]);
+    doubleFx(gain);
+    emojiBurst("🧿", 22, true);
+    floatAt(document.getElementById("expVal").parentElement, `+${fmt(gain)} 🧿`, "#9fd64e");
+    gachaLog.textContent = `💥 DOUBLE! «img ${c + 1}» already owned — consolation +${fmt(gain)} 🧿 EXP`;
+  } else {
+    S.cards[g][c] = 1;
+    cell.classList.remove("no");
+    cell.innerHTML = `<div class="ce">${cardEmoji(g, c)}</div>img ${c + 1}`;
+    cell.classList.add("reveal");
+    emojiBurst(cardEmoji(g, c), 12, false, cell); // VFX выигрыша карточки
+    for (let k = 0; k < 4; k++) sCoin(k);
+    vibrate(30);
+    if (S.cards[g].every(n => n > 0)) {
+      S.plat[g] = true;
+      gachaLog.textContent = `⭐ PLATINUM CARD: ${girl(g).name}! +5% EXP forever!`;
+      bigCelebrate(); emojiBurst("⭐", 24, true);
+    } else {
+      gachaLog.textContent = `🎉 NEW: «img ${c + 1}» ${cardEmoji(g, c)}`;
+    }
+  }
+  update(); save();
+  setTimeout(() => {
+    rolling = false;
+    // страница собрана этим роллом → текущей становится следующая, чтобы крутить дальше
+    if (pageComplete(Math.floor(g / 9))) gachaPage = inProgressPage();
+    renderGacha();
+    if (TUT.step === "gachaRoll") tutGoto("gachaClose");
+  }, 900); // дать анимации доиграть
+}
+
+document.getElementById("collBtn").addEventListener("click", () => {
+  if (rolling) return;
+  // при открытии — всегда текущая страница (не первая и не замок) — balance.md §4a
+  gachaGirl = null; gachaSummary = null; gachaPage = inProgressPage(); gachaLog.textContent = "";
+  renderGacha(); gachaOverlay.classList.add("show");
+  if (TUT.step === "gachaOpen") tutGoto("gachaRoll");
+});
+gachaBody.addEventListener("click", e => {
+  if (rolling || gachaSummary) return;
+  // стрелки ◀▶ — листание страниц девочек
+  const nav = e.target.closest(".gnavBtn");
+  if (nav) { if (!nav.disabled) { gachaPage += +nav.dataset.nav; renderGacha(); } return; }
+  const t = e.target.closest(".girl");
+  if (!t) return;
+  gachaGirl = +t.dataset.g; gachaLog.textContent = "";
+  renderGacha();
+});
+gachaBack.addEventListener("click", () => {
+  if (rolling) return;
+  if (gachaSummary) { gachaSummary = null; gachaPage = inProgressPage(); renderGacha(); return; }
+  // «закрыть» полностью закрывает окно — и из галереи, и со страницы девочки (v15.1):
+  // раньше со страницы девочки кнопка вела «← к девочкам» (лишний шаг назад)
+  stopGalleryScroll();
+  gachaGirl = null; gachaLog.textContent = "";
+  gachaOverlay.classList.remove("show");
+  if (TUT.step === "gachaClose") tutGoto("expIntro");
+});
+// тап по окну гачи во время анимации (колеси/монтажа) — пропустить к результату (v13).
+// клики по тайлам/кнопкам гачи всплывают сюда (их обработчики выходят при rolling)
+gachaOverlay.addEventListener("click", () => { if (rolling && gachaSkipFn) gachaSkipFn(); });
+
+// единый ролл (цена уже списана вызывающим): колеса девочка → карточка
+function runRoll(burstEmoji, burstEl) {
+  rolling = true;
+  dailyProgress("roll", 1); // дейли «прокрути гачу N×»
+  gachaLog.textContent = "";
+  emojiBurst(burstEmoji, 8, false, burstEl); // VFX нажатия
+  if (TUT.active) tutHide();                 // колесу видно без темноты
+  // крутим всегда на текущей странице (ролл доступен только на ней)
+  const page = inProgressPage();
+  ensurePage(page);
+  gachaPage = page; gachaGirl = null;
+  renderGacha(); // перерисовать с задизейбленной кнопкой и чистыми подсветками
+  update(); save();
+  // исход решается до анимации, колеси — презентация (принцип feel.md №1).
+  // pos — позиция девочки на странице (0..8), g — её глобальный индекс
+  const pos = Math.floor(Math.random() * 9), c = Math.floor(Math.random() * 9);
+  const g = page * 9 + pos;
+  // финал ролла — мгновенно открыть карточку (вызывается колесой ИЛИ пропуском тапом)
+  let finished = false;
+  const finish = () => {
+    if (finished) return; finished = true;
+    gachaSkipFn = null; clearGachaTimers();
+    gachaGirl = g; renderGacha();
+    revealCard(g, c, gachaBody.querySelectorAll(".gcard")[c]);
+  };
+  gachaSkipFn = finish; // тап по окну гачи промотает к результату
+  const tiles = [...gachaBody.querySelectorAll(".girl")];
+  wheel(tiles, pos, 3, tile => {
+    if (finished) return;
+    sThud(); vibrate([30, 30, 60]);
+    tile.classList.add("winflash"); // импакт: выигранная девочка мигает
+    gachaTimer(() => {
+      if (finished) return;
+      gachaGirl = g;
+      renderGacha();
+      const cards = [...gachaBody.querySelectorAll(".gcard")].slice(0, 9); // без платины
+      wheel(cards, c, 2, () => finish());
+    }, 850);
+  });
+}
+// единая кнопка (v13.4): k=1 — одиночная колеса с reveal; k≥2 — мульти-монтаж + итоги
+gachaRoll.addEventListener("click", e => {
+  e.stopPropagation(); // не дать запускающему клику всплыть в скип-обработчик окна
+  if (rolling || gachaGirl !== null || gachaPage !== inProgressPage()) return;
+  const cost = rollCost(), k = Math.min(MULTI_MAX, Math.floor(S.harda / cost));
+  if (k < 1) return;
+  if (k === 1) { S.harda -= cost; runRoll("💖", gachaRoll); }
+  else runMulti(k);
+});
+// ad/⭐ buy: не хватает на ролл → реклама ИЛИ 10 звёзд → ролл (общая выдача)
+const gachaBuyRoll = src => { if (!rolling && gachaGirl === null) runRoll(src, gachaAd); };
+gachaAd.addEventListener("click", e => {
+  e.stopPropagation();
+  if (rolling || gachaGirl !== null) return;
+  showAd(() => gachaBuyRoll("🎬"),
+    () => { gachaLog.textContent = "Ad failed to load — try again later"; });
+});
+gachaStars.addEventListener("click", e => {
+  e.stopPropagation();
+  if (rolling || gachaGirl !== null) return;
+  buyWithStars("gacha", () => gachaBuyRoll("⭐"),
+    () => { gachaLog.textContent = "Payment failed — try again later"; });
+});
+
+// мульти-ролл: k роллов разом (вызывается единой кнопкой при k≥2). Исходы решены до
+// анимации (принцип №1), монтаж ~2.5с НЕ зависит от k, потом итоговое окно
+function runMulti(k) {
+  const cost = rollCost();
+  S.harda -= k * cost;
+  rolling = true;
+  dailyProgress("roll", k); // дейли «прокрути гачу N×» (мульти-ролл)
+  gachaLog.textContent = "";
+  emojiBurst("💖", 16, true, gachaRoll);
+  renderGacha(); update();
+  // все исходы и выплаты применяются сразу (кап спинов — в порядке роллов).
+  // newCards — плоский список {g, c} (для пролистывающейся галереи итогов, v13).
+  // Собрав страницу, ролл переходит на следующую (иначе остаток роллов — дубли)
+  const sum = { rolls: k, spent: k * cost, newCards: [],
+                dupes: 0, expGained: 0, plats: [] };
+  let page = inProgressPage();
+  ensurePage(page);
+  for (let i = 0; i < k; i++) {
+    while (pageComplete(page)) { page++; ensurePage(page); } // страница собрана → следующая
+    const g = page * 9 + Math.floor(Math.random() * 9), c = Math.floor(Math.random() * 9);
+    if (S.cards[g][c] > 0) {
+      S.cards[g][c]++; sum.dupes++;
+      const gain = dupeExp();
+      S.exp += gain; sum.expGained += gain;
+    } else {
+      S.cards[g][c] = 1; sum.newCards.push({ g, c });
+      if (S.cards[g].every(n => n > 0)) { S.plat[g] = true; sum.plats.push(g); }
+    }
+  }
+  gachaPage = inProgressPage();
+  save();
+  // монтаж: золотая рамка строчит по девочкам с ускорением, бёрсты по пути,
+  // финальный удар (фанфара+конфетти+тряска) — и итоговое окно
+  const tiles = [...gachaBody.querySelectorAll(".girl")];
+  const t0 = performance.now(), DUR = 2200;
+  let cur = -1, n = 0, mdone = false;
+  // финал монтажа → итоговое окно (по таймеру ИЛИ пропуском тапом)
+  const finishMulti = () => {
+    if (mdone) return; mdone = true;
+    gachaSkipFn = null; clearGachaTimers();
+    if (cur >= 0 && tiles[cur]) tiles[cur].classList.remove("sel");
+    bigCelebrate();
+    gachaTimer(() => { rolling = false; gachaSummary = sum; renderGacha(); update(); }, 600);
+  };
+  gachaSkipFn = finishMulti; // тап по окну гачи промотает к итогам
+  (function step() {
+    const p = Math.min(1, (performance.now() - t0) / DUR);
+    if (cur >= 0) tiles[cur].classList.remove("sel");
+    if (p >= 1) { finishMulti(); return; }
+    cur = Math.floor(Math.random() * tiles.length);
+    tiles[cur].classList.add("sel");
+    sTick();
+    if (n++ % 4 === 3) emojiBurst("✨", 3, false, tiles[cur]);
+    gachaTimer(step, 130 - 95 * p); // строчит всё быстрее
+  })();
+}
+
+/* ═══════════ магазин бустов (v11; за рекламу — v16) ═══════════ */
+// Бусты выдаются за просмотр rewarded-рекламы (showAd, ads.md §3). Вне Adsgram
+// (десктоп / BLOCK_ID не вставлен) — мгновенно (тест). Релиз: возможно + Stars-канал
+// (monetization.md). Бусты — таймеры (turboUntil/mult2Until) и счётчик (wildStreak),
+// переживают перезагрузку и перерождение в своём окне (balance.md §7)
+const shopOverlay = document.getElementById("shopOverlay");
+const shopBody = document.getElementById("shopBody");
+const shopLog = document.getElementById("shopLog");
+function buffLeft(until) {
+  const r = Math.max(0, until - Date.now());
+  const m = Math.floor(r / 60000), s = Math.floor(r / 1000) % 60;
+  return m + ":" + (s < 10 ? "0" : "") + s;
+}
+function renderShop() {
+  const items = [
+    { id: "turbo", ico: "🚀", name: "Turbo Auto-play",
+      desc: turboActive()
+        ? `active: tier ${S.turboTier}/2 · ${buffLeft(S.turboUntil)} left`
+        : "auto-play = hand speed · 2nd buy = ×2 faster again · 5 min",
+      on: turboActive() },
+    { id: "wild", ico: "⚡", name: "Wild — lucky streak",
+      desc: S.wildStreak > 0
+        ? `active: ${S.wildStreak} more spins with ⚡ on reel 1`
+        : `reel 1 = ⚡ wild for the next ${WILD_STREAK} spins`,
+      on: S.wildStreak > 0 },
+    { id: "spins", ico: "🎲", name: `+${SHOP_SPINS} Energy`,
+      desc: `instantly +${SHOP_SPINS} Energy (cap ${SPINS_MAX}, overflow burns)`, on: false },
+    { id: "mult", ico: "✨", name: "×2 Coins & EXP",
+      desc: tempMult() > 1
+        ? `active: ×2 · ${buffLeft(S.mult2Until)} left`
+        : "double Coin and EXP wins for 5 minutes",
+      on: tempMult() > 1 },
+  ];
+  shopBody.innerHTML = items.map(it =>
+    `<div class="shopItem${it.on ? " on" : ""}" data-s="${it.id}">
+      <div class="shopIco">${it.ico}</div>
+      <div class="shopInfo"><b>${it.name}</b><span>${it.desc}</span></div>
+      <div class="shopActs">
+        <button class="shopGet" data-act="ad">🎬<br><small>ad</small></button>
+        <button class="shopGet stars" data-act="stars">⭐ ${STARS_PRICE}</button>
+      </div>
+    </div>`).join("");
+}
+const SHOP_BUY = {
+  turbo() {
+    if (turboActive() && S.turboTier < 2) S.turboTier = 2;
+    else if (!turboActive()) S.turboTier = 1;
+    S.turboUntil = Date.now() + FIVE_MIN;
+    shopLog.textContent = `🚀 Turbo tier ${S.turboTier}/2 for 5 minutes!`;
+  },
+  wild() {
+    S.wildStreak += WILD_STREAK;
+    shopLog.textContent = `⚡ Wild streak: ${S.wildStreak} spins with ⚡ on reel 1!`;
+  },
+  spins() {
+    const c = Math.min(SHOP_SPINS, SPINS_MAX - S.spins);
+    S.spins += c;
+    shopLog.textContent = c > 0 ? `🎲 +${c} Energy!` : "Energy tank full — +0";
+  },
+  mult() {
+    S.mult2Until = Date.now() + FIVE_MIN;
+    shopLog.textContent = "✨ ×2 Coins and EXP for 5 minutes!";
+  },
+};
+document.getElementById("shopBtn").addEventListener("click", () => {
+  shopLog.textContent = ""; renderShop(); shopOverlay.classList.add("show");
+});
+document.getElementById("shopClose").addEventListener("click", () => shopOverlay.classList.remove("show"));
+shopBody.addEventListener("click", e => {
+  const act = e.target.closest("[data-act]");
+  if (!act) return;
+  const t = act.closest(".shopItem"), id = t.dataset.s;
+  // буст за просмотр рекламы (ads.md §3) ИЛИ за 10 звёзд (monetization.md): общая выдача.
+  // скип/no-fill/отмена → без выдачи. Вне Adsgram/TG (десктоп) — мгновенно (тест)
+  const grant = () => {
+    SHOP_BUY[id]();
+    vibrate(30); emojiBurst("✨", 8, false, t);
+    update(); save(); renderShop();
+  };
+  if (act.dataset.act === "stars")
+    buyWithStars("shop_" + id, grant, () => { shopLog.textContent = "Payment failed — try again later"; });
+  else
+    showAd(grant, () => { shopLog.textContent = "Ad failed to load — try again later"; });
+});
+
+/* ═══════════ окно «спины кончились» (v11) ═══════════ */
+const spinsOverlay = document.getElementById("spinsOverlay");
+function buySpins(n) {           // +n спинов (за рекламу), кап жёсткий
+  S.spins += Math.min(n, SPINS_MAX - S.spins);
+  spinsOverlay.classList.remove("show");
+  update(); save();
+}
+// +спины за рекламу ИЛИ 10 звёзд — выдача по досмотру/оплате; скип/no-fill → окно остаётся
+document.getElementById("spinsAd").addEventListener("click", () => showAd(() => buySpins(SHOP_SPINS)));
+document.getElementById("spinsStars").addEventListener("click", () => buyWithStars("spins", () => buySpins(SHOP_SPINS)));
+document.getElementById("spinsClose").addEventListener("click", () => spinsOverlay.classList.remove("show"));
+
+/* ═══════════ бонус: окно награды за рекламу (v12.2, balance.md §8, monetization.md §3a) ═══════════ */
+// Триггер — 3×💎 на линии (ролл BONUS_P в doSpin → evaluate зовёт showBonus).
+// Игрок «гэмблит рекламу»: каждый спин шанс выбить бонус-символ. Окно живёт 5с,
+// яркий мигающий фон + дождь монет привлекают внимание. Награда — за просмотр (🎬).
+const bonusOverlay = document.getElementById("bonusOverlay");
+const jpDesc = document.getElementById("jpDesc");
+const jpClaimBtn = document.getElementById("jpClaim");
+const jpStarsBtn = document.getElementById("jpStars");
+let jpTimer = null, jpPending = null;
+// jpArmed — окно реагирует на тапы (взводится через JP_ARM_MS); jpArmTimer — его таймер
+let jpArmed = false, jpArmTimer = null;
+function bonusReward() {
+  return {
+    harda: Math.round(rollCost() * 5),   // ~5 роллов гачи (масштаб с уровнем)
+    exp:   Math.round(goal() * 0.25),    // четверть уровня
+    spins: SPINS_MAX,                     // полный бак (кап жёсткий)
+  };
+}
+function bonusAttention() {        // мигание (CSS) + вибрация + фанфара — привлечь внимание
+  sFanfare(); setTimeout(sFanfare, 450);
+  vibrate([0, 300, 150, 300, 150, 500]);
+  confetti(); confetti();
+}
+// изобильный фон: пока окно открыто — дождь монет/блёсток + периодические конфетти
+const jpVfx = document.getElementById("jpVfx");
+const JP_POOL = ["💰", "🪙", "💎", "✨", "🎲", "🧿", "⭐", "💵", "🤑", "🌟"];
+let jpVfxTimer = null, jpVfxTick = 0;
+function bonusVFXStart() {
+  jpVfx.innerHTML = ""; jpVfxTick = 0;
+  bonusSpawn(14);                         // сразу плотный залп
+  jpVfxTimer = setInterval(() => {
+    bonusSpawn(3);
+    if (++jpVfxTick % 3 === 0) confetti();  // волны конфетти ~каждые 0.6с
+  }, 200);
+}
+function bonusSpawn(n) {
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement("span");
+    d.className = "jpfall";
+    d.textContent = JP_POOL[Math.floor(Math.random() * JP_POOL.length)];
+    d.style.left = (Math.random() * 100) + "%";
+    d.style.fontSize = (20 + Math.random() * 36) + "px";
+    const dur = 1.5 + Math.random() * 1.8;
+    d.style.animationDuration = dur + "s";
+    d.style.setProperty("--r", (Math.random() * 720 - 360) + "deg");
+    jpVfx.appendChild(d);
+    setTimeout(() => d.remove(), dur * 1000 + 120);
+  }
+}
+function bonusVFXStop() {
+  clearInterval(jpVfxTimer); jpVfxTimer = null;
+  jpVfx.innerHTML = "";
+}
+// убывающий таймер-бар окна: ширина 100→0% за BONUS_MS + число секунд («успей забрать»)
+let jpCountRAF = null;
+function startJpCountdown() {
+  stopJpCountdown();
+  const fill = document.getElementById("jpTimerFill"), txt = document.getElementById("jpTimerTxt");
+  const t0 = performance.now();
+  (function f(now) {
+    const left = Math.max(0, BONUS_MS - (now - t0));
+    fill.style.width = (left / BONUS_MS * 100) + "%";
+    txt.textContent = Math.ceil(left / 1000) + "s";
+    if (left > 0) jpCountRAF = requestAnimationFrame(f); else jpCountRAF = null;
+  })(t0);
+}
+function stopJpCountdown() { if (jpCountRAF) { cancelAnimationFrame(jpCountRAF); jpCountRAF = null; } }
+function showBonus() {
+  jpPending = bonusReward();
+  jpDesc.textContent = `Reward: +${fmt(jpPending.harda)} 🪙  +${fmt(jpPending.exp)} 🧿  +${jpPending.spins} 🎲`;
+  bonusOverlay.classList.add("show");
+  bonusAttention();
+  bonusVFXStart();
+  startJpCountdown();
+  // взвод тапов: первые JP_ARM_MS окно не реагирует (кнопка приглушена)
+  jpArmed = false; jpClaimBtn.classList.add("locked"); jpStarsBtn.classList.add("locked");
+  clearTimeout(jpArmTimer);
+  jpArmTimer = setTimeout(() => {
+    jpArmed = true; jpClaimBtn.classList.remove("locked"); jpStarsBtn.classList.remove("locked");
+  }, JP_ARM_MS);
+  clearTimeout(jpTimer);
+  jpTimer = setTimeout(closeBonus, BONUS_MS); // окно живёт BONUS_MS, потом само закрывается
+}
+function closeBonus() {
+  if (!jpArmed) return;            // в первые JP_ARM_MS закрытие тапом игнорируется
+  clearTimeout(jpTimer); clearTimeout(jpArmTimer);
+  stopJpCountdown();
+  bonusVFXStop();
+  bonusOverlay.classList.remove("show");
+  bonusLanded = false;           // барабан снова можно крутить
+}
+function grantBonus(r) {          // насыпать награду бонуса — общая выдача для 🎬 и ⭐
+  bonusVFXStop();
+  S.harda += r.harda; S.totalWon += r.harda;
+  S.exp += r.exp;
+  const cr = Math.min(r.spins, SPINS_MAX - S.spins); // кап жёсткий
+  S.spins += cr;
+  bonusOverlay.classList.remove("show");
+  bonusLanded = false;           // барабан снова можно крутить
+  bigCelebrate(); emojiBurst("💰", 28, true); say("bigwin", "🤩");
+  floatAt(document.getElementById("hardaVal").parentElement, `+${fmt(r.harda)} 🪙`, "#e8556d");
+  floatAt(document.getElementById("expVal").parentElement, `+${fmt(r.exp)} 🧿`, "#9fd64e");
+  if (cr > 0) floatAt(document.getElementById("spinsBar"), `+${cr} 🎲`, "#4db8e8");
+  update(); save();
+}
+function jpClaimFail() {            // скип/нет рекламы/отмена оплаты → без награды, закрываем (не тупик)
+  bonusVFXStop();
+  bonusOverlay.classList.remove("show");
+  bonusLanded = false;
+}
+function claimBonus(viaStars) {   // забор бонуса: 🎬 реклама ИЛИ ⭐ 10 звёзд → награда по досмотру/оплате
+  if (!jpArmed) return;            // в первые JP_ARM_MS забор тапом игнорируется
+  // гасим авто-закрытие/таймер СРАЗУ: показ ~15с > окна 5с, иначе оно закроется
+  // под рекламой. Барабан остаётся заморожен (bonusLanded) до конца показа/оплаты
+  clearTimeout(jpTimer); clearTimeout(jpArmTimer);
+  stopJpCountdown();
+  const r = jpPending || bonusReward();
+  if (viaStars) buyWithStars("bonus", () => grantBonus(r), jpClaimFail);
+  else showAd(() => grantBonus(r), jpClaimFail);
+}
+document.getElementById("jpClaim").addEventListener("click", () => claimBonus(false));
+document.getElementById("jpStars").addEventListener("click", () => claimBonus(true));
+document.getElementById("jpClose").addEventListener("click", closeBonus);
+// тап вне окна (по затемнению) тоже закрывает
+bonusOverlay.addEventListener("click", e => { if (e.target === bonusOverlay) closeBonus(); });
+
+/* ═══════════ туториал (первый запуск, скриптованное ведение за ручку) ═══════════ */
+// Контракт — tutorial.md. Темнота ЧУТЬ ПРОЗРАЧНАЯ (rgba .72), «прожектор» с мягким
+// краем (blur 24px) вырезан box-shadow'ом вокруг цели. Цель нажимается ПО-НАСТОЯЩЕМУ:
+// 4 невидимых блокера закрывают всё остальное (события не симулируются — рычаг
+// требует реального жеста). Исходы спинов форсятся через TUT.force.
+const tutHole = document.getElementById("tutHole");
+const tutHint = document.getElementById("tutHint");
+const tutPaw  = document.getElementById("tutPaw");
+const tutBlocks = document.getElementById("tutBlocks");
+const tutBlockEls = [...tutBlocks.children];
+
+function tutShow(target, hint, opts = {}) {
+  // target — элемент или прямоугольник {left, top, width, height}
+  const pad = opts.pad != null ? opts.pad : 8; // без ?? — компат со старыми webview (Chrome <80)
+  const b = target.getBoundingClientRect ? target.getBoundingClientRect() : target;
+  const r = { left: b.left - pad, top: b.top - pad, width: b.width + pad * 2, height: b.height + pad * 2 };
+  tutHole.style.display = "";
+  tutHole.style.left = r.left + "px"; tutHole.style.top = r.top + "px";
+  tutHole.style.width = r.width + "px"; tutHole.style.height = r.height + "px";
+  // блокеры: нажимается ТОЛЬКО цель. Если задан pawEl — кликабелен лишь он
+  // (дырка может быть шире, чтобы читался текст вокруг), иначе вся дырка;
+  // tapAnywhere — наоборот, один блокер на весь экран (тап = продолжить)
+  tutBlocks.style.display = "";
+  let c = r;
+  if (opts.pawEl) {
+    const cb = opts.pawEl.getBoundingClientRect();
+    c = { left: cb.left - 4, top: cb.top - 4, width: cb.width + 8, height: cb.height + 8 };
+  }
+  const rects = opts.tapAnywhere
+    ? [[0, 0, innerWidth, innerHeight], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
+    : [[0, 0, innerWidth, c.top],
+       [0, c.top + c.height, innerWidth, innerHeight - c.top - c.height],
+       [0, c.top, c.left, c.height],
+       [c.left + c.width, c.top, innerWidth - c.left - c.width, c.height]];
+  tutBlockEls.forEach((el, i) => {
+    const [x, y, w, h] = rects[i];
+    el.style.left = x + "px"; el.style.top = y + "px";
+    el.style.width = Math.max(0, w) + "px"; el.style.height = Math.max(0, h) + "px";
+  });
+  // подсказка: под целью, если цель в верхней половине экрана, иначе над
+  tutHint.style.display = "";
+  tutHint.textContent = hint;
+  const below = r.top + r.height / 2 < innerHeight / 2;
+  tutHint.classList.toggle("above", !below);
+  tutHint.style.top = (below ? r.top + r.height + 18 : r.top - 18) + "px";
+  // палец 👇 — «жми/тяни сюда»; pawEl позволяет светить весь шит (текст читается),
+  // а пальцем указывать конкретную кнопку (плейтест 2026-06-13)
+  tutPaw.style.display = opts.paw ? "" : "none";
+  if (opts.paw) {
+    const p = opts.pawEl ? opts.pawEl.getBoundingClientRect() : r;
+    tutPaw.style.left = (p.left + p.width / 2) + "px";
+    // палец 👇 ставим НАД целью: кончик (низ глифа) указывает на её верхний край,
+    // а не центр пальца на центре кнопки (плейтест 2026-06-13). −36 ≈ высота глифа
+    tutPaw.style.top = (p.top - 36) + "px";
+  }
+}
+function tutHide() {
+  // на время спина/колеси темноту прячем (движение должно быть видно — feel.md
+  // принцип 4), но блокеры ОСТАЮТСЯ: чужие кнопки в туториале не нажимаются
+  tutHole.style.display = "none";
+  tutHint.style.display = "none";
+  tutPaw.style.display = "none";
+}
+function tutGoto(step) {
+  TUT.step = step;
+  // двойной rAF: даём DOM перестроиться (оверлеи/ререндеры), потом меряем цель
+  requestAnimationFrame(() => requestAnimationFrame(tutRender));
+}
+function tutRender() {
+  if (!TUT.active) return;
+  switch (TUT.step) {
+    case "swipe1": {
+      TUT.force = "harda";
+      // спины-бар появляется с 1-й круткой — тогда же объясняем «энергию» (встроено
+      // в начало вместо отдельного финального шага про спины, v15)
+      const msg = (TUT.spins | 0) === 0
+        ? "Pull the handle down — spin!"
+        : "🎲 Energy is your fuel, it refills over time. Spin again!";
+      tutShow(rail, msg, { paw: true });
+      break;
+    }
+    case "upgOpen":
+      TUT.force = null;
+      tutShow(document.getElementById("upgBtn"), "You've saved up! Tap «Upgrade»", { paw: true });
+      break;
+    case "upgBuy":
+      // дырка на весь шит — текст прокачки читается, палец на кнопке харды
+      tutShow(upgOverlay.querySelector(".sheet"), "Boost Coins: +50% to their wins",
+        { paw: true, pawEl: document.getElementById("upgHarda") });
+      break;
+    case "upgClose":
+      tutShow(document.getElementById("upgClose"), "Close it — and keep spinning");
+      break;
+    case "swipe2":
+      TUT.force = "harda";
+      tutShow(rail, "Spin more — saving up for the Collection 💖", { paw: true });
+      break;
+    case "gachaOpen":
+      TUT.force = null;
+      // тутор продаёт ЗАЧЕМ, не только КУДА (плейтест: «тутор на гачу не понял»)
+      tutShow(document.getElementById("collBtn"),
+        "Enough for a Collection roll! Collect a girl's 9 cards — her platinum gives +5% EXP FOREVER",
+        { paw: true });
+      break;
+    case "gachaRoll":
+      tutShow(gachaOverlay.querySelector(".sheet"), "Tap ROLL — win a card!",
+        { paw: true, pawEl: gachaRoll });
+      break;
+    case "gachaClose":
+      tutShow(gachaBack,
+        "The card is yours — first of 9! A full set = platinum +5% EXP forever. Back to the reels");
+      break;
+    case "expIntro":
+      // финал основного туториала: открываем экспа-бар, показываем куда копить (v15)
+      TUT.force = null;
+      S.barExp = true; update(); // экспа-бар должен стать видимым ДО прожектора на него
+      tutShow(document.getElementById("expBar"),
+        "🧿 Now build up EXP — fill the bar and you can ASCEND ♻️ (tap)",
+        { tapAnywhere: true });
+      break;
+    case "rebirthTut":
+      // веха: экспа набрана впервые → учим кнопку перерождения (v15)
+      TUT.force = null;
+      tutShow(document.getElementById("rebirthBtn"),
+        "🧿 Bar is full! Tap ASCENSION — reset the run for ×2 to all wins ♻️",
+        { paw: true });
+      break;
+    case "autoReward":
+      // веха: 2-е перерождение + 3 спина → автоспин (награда за престиж, v15)
+      TUT.force = null;
+      tutShow(autoBtn,
+        "🎁 AUTO-PLAY unlocked! It spins for you while you rest — but slower than by hand 🐢 (tap)",
+        { paw: true, tapAnywhere: true });
+      break;
+    case "shopTut":
+      // веха: +5 спинов после автоспина → магазин + подарок-турбо (v15)
+      TUT.force = null;
+      tutShow(document.getElementById("shopBtn"),
+        "🛒 The boost SHOP is open! Gift: max TURBO auto-play (×2 faster than hand) for 1 min 🚀 In the shop it stacks twice — for 2 ads (tap)",
+        { paw: true, tapAnywhere: true });
+      break;
+    case "wheelTut":
+      // веха: 3-е перерождение → Колеса экспы (v15)
+      TUT.force = null;
+      tutShow(document.getElementById("wheelBtn"),
+        "🎟️ The STAR WHEEL is open! Here's a free Ticket 🎟️ — spin to win EXP when you're short (tap)",
+        { paw: true, tapAnywhere: true });
+      break;
+  }
+  TUT.rendered = TUT.step;
+}
+function tutOnSpinEnd() {
+  // пауза 700мс — дать выигрышу отыграть, потом вернуть темноту
+  if (TUT.step === "swipe1") {
+    TUT.spins = (TUT.spins | 0) + 1;
+    S.barSpins = true;                 // спины-бар появляется с 1-й круткой (энергия) — v15
+    if (TUT.spins >= 3) {              // 3 крутки → открываем харда-бар + прокачку
+      S.upgUnlocked = true; update(); save();
+      setTimeout(() => tutGoto("upgOpen"), 700);
+    } else { update(); setTimeout(tutRender, 700); }
+  } else if (TUT.step === "swipe2") {
+    if (S.harda >= rollCost()) {        // хватает на ролл → открываем гачу
+      S.gachaUnlocked = true; update(); save();
+      setTimeout(() => tutGoto("gachaOpen"), 700);
+    } else setTimeout(tutRender, 700);
+  }
+}
+// «тапни, чтобы продолжить» — клик по блокеру (всплывает с .tutBlock).
+// rebirthTut кончается НЕ тут, а по настоящему тапу кнопки перерождения (см. её обработчик)
+tutBlocks.addEventListener("click", () => {
+  if (TUT.rendered !== TUT.step) return; // шаг ещё не отрисован — двойной тап не проскакивает
+  switch (TUT.step) {
+    case "expIntro":    tutEnd(); break;          // конец основного туториала (v15)
+    case "autoReward":  autoTutEnd(); break;      // мини-тутор автоспина (2-е перерождение)
+    case "shopTut":     shopTutEnd(); break;      // мини-тутор магазина
+    case "wheelTut": wheelTutEnd(); break;  // мини-тутор колеси (3-е перерождение)
+  }
+});
+function tutEnd() {
+  TUT.active = false; TUT.step = null; TUT.force = null;
+  tutHide();
+  tutBlocks.style.display = "none";
+  S.tutDone = true; save();
+  say("idle", "😺");
+}
+// общий конец мини-туториала: чистит рантайм, НЕ трогает tutDone (флаг — на вызывающем)
+function miniTutEnd() {
+  TUT.active = false; TUT.step = null; TUT.force = null;
+  tutHide();
+  tutBlocks.style.display = "none";
+}
+function autoTutEnd() {
+  miniTutEnd();
+  S.autoTutDone = true; S.obSpins = 0; // веха: считаем 5 спинов до магазина заново (v15)
+  save(); update(); say("idle", "😺");
+}
+function shopTutEnd() {
+  miniTutEnd();
+  // подарок-турбо стартует ТОЛЬКО по завершении тутора (раньше таймер тикал во время
+  // обучения — запрос автора 2026-06-16): турбо тир2 (×2 быстрее руки) на 1 минуту
+  S.turboUntil = Date.now() + 60 * 1000; S.turboTier = 2;
+  save(); update(); say("idle", "😺");
+}
+function wheelTutEnd() { miniTutEnd(); save(); update(); say("idle", "😺"); }
+function tutStart() {
+  TUT.active = true; TUT.spins = 0;
+  tutGoto("swipe1");
+}
+// мини-туторы открывают свою кнопку (update() делает её видимой), потом подсвечивают
+function startRebirthTut() {
+  S.rebirthUnlocked = true; update();
+  TUT.active = true; tutGoto("rebirthTut");
+}
+function startAutoTut() {
+  S.autoUnlocked = true; update();
+  TUT.active = true; tutGoto("autoReward");
+}
+function startShopTut() {
+  S.shopUnlocked = true;
+  // подарок-турбо выдаётся в shopTutEnd (после прохождения тутора), чтобы таймер не тикал
+  // во время обучения (запрос автора 2026-06-16)
+  update();
+  TUT.active = true; tutGoto("shopTut");
+}
+function startWheelTut() {
+  S.wheelUnlocked = true;
+  S.tickets += 1; // бесплатный билет — чтобы было чем крутить прямо в туторе (v15.2)
+  update();
+  TUT.active = true; tutGoto("wheelTut");
+}
+// вехи онбординга после основного туториала (v15): по одному мини-тутору за раз.
+// Зовётся после каждого спина (если tutDone) и через паузу после перерождения
+// вехи онбординга (v18): фичи открывает ШКАЛА АНЛОКОВ. Когда track-опыта хватает на
+// очередную feature-ступень, здесь стартует её мини-тутор (он же ставит флаг). После —
+// trackAdvance() проходит ступень дальше. Перерождение ждёт полной шкалы экспы (кнопка живая).
+function onboardingCheck() {
+  if (TUT.active || spinning || overlayOpen()) return;
+  if (S.track.tier >= TRACK.length) return;
+  const r = TRACK[S.track.tier];
+  if (r.kind !== "feat" || S.track.xp < r.cost) return;     // следующая ступень не feature или ещё не накоплена
+  if (S[FEAT_FLAG[r.feat]]) { if (trackAdvance()) { update(); save(); } return; } // фича уже открыта — продвинуть tier
+  if (r.feat === "rebirth") { if (S.exp >= goal()) startRebirthTut(); return; }    // ждём полную шкалу — кнопка должна быть активной
+  if (r.feat === "auto")  { startAutoTut(); return; }
+  if (r.feat === "shop")  { startShopTut(); return; }
+  if (r.feat === "wheel") { startWheelTut(); return; }
+}
+window.addEventListener("resize", () => { if (TUT.active) tutRender(); });
+
+/* ═══════════ сброс ═══════════ */
+function wipeSave() {
+  localStorage.removeItem("hoshikuzu_save");
+  S = DEFAULTS();
+  recomputeMeta(); // metaBonus сброшен к дефолту (шкала с нуля)
+  update(); save();
+  if (!TUT.active) tutStart(); // сброс = снова первый запуск
+}
+document.getElementById("resetLink").addEventListener("click", e => {
+  e.preventDefault();
+  if (confirm("Reset all demo progress?")) wipeSave();
+});
+
+/* ═══════════ DEV-КНОПКИ — УДАЛИТЬ ПЕРЕД РЕЛИЗОМ (этот блок + #devPanel в CSS и разметке) ═══════════ */
+// выдача масштабируется с уровнем перерождения, чтобы оставаться полезной на лейте
+document.getElementById("devHarda").addEventListener("click", () => {
+  S.harda += 10000 * global(); update(); save();
+});
+document.getElementById("devExp").addEventListener("click", () => {
+  S.exp += Math.round(goal() * 0.5); update(); save();
+});
+document.getElementById("devTickets").addEventListener("click", () => {
+  S.tickets += 20; update();
+  if (wheelOverlay.classList.contains("show")) updateWheel();
+  save();
+});
+// v18: track-опыт для теста шкалы анлоков (+ дёргаем онбординг, чтобы feature-тутор всплыл)
+document.getElementById("devTrack").addEventListener("click", () => {
+  addTrackXp(200); save();
+  if (S.tutDone) onboardingCheck();
+});
+// v18: «следующий день» — перекатить дейлики (сброс прогресса) для теста
+document.getElementById("devDay").addEventListener("click", () => {
+  rollDailies(false); update(); save();
+  if (trackOverlay.classList.contains("show")) renderTrack();
+});
+// v13.6: ручной тоггл тира графики (для теста на устройстве; авто-детект — gfxSample)
+document.getElementById("devGfx").addEventListener("click", () => setGfx(!GFX_LOW));
+document.getElementById("devWipe").addEventListener("click", () => {
+  if (confirm("DEV: wipe save and start over?")) wipeSave();
+});
+
+/* ═══════════ отрисовка ═══════════ */
+function update() {
+  // прогрессивное раскрытие UI (v15): бары и кнопки видны только после своей вехи
+  // обучения (tutorial.md). Только display — высоты кнопок не трогаем (feel.md §10)
+  document.getElementById("spinsBar").style.display = S.barSpins ? "" : "none";
+  document.getElementById("hardaBar").style.display = S.upgUnlocked ? "" : "none";
+  document.getElementById("expBar").style.display = S.barExp ? "" : "none";
+  document.getElementById("shopBtn").style.display = S.shopUnlocked ? "" : "none";
+  document.getElementById("upgBtn").style.display = S.upgUnlocked ? "" : "none";
+  document.getElementById("collBtn").style.display = S.gachaUnlocked ? "" : "none";
+  document.getElementById("rebirthBtn").style.display = S.rebirthUnlocked ? "" : "none";
+  document.getElementById("wheelBtn").style.display = S.wheelUnlocked ? "" : "none";
+
+  const secLeft = Math.max(0, Math.ceil((REGEN_MS - (Date.now() - S.lastRegen)) / 1000));
+  document.getElementById("spinsFill").style.width = (S.spins / SPINS_MAX * 100) + "%";
+  document.getElementById("spinsVal").innerHTML =
+    `${S.spins}/${SPINS_MAX}` + (S.spins < SPINS_MAX ? ` <small>+1 in ${secLeft}s</small>` : "");
+
+  const cost = upgCost();
+  document.getElementById("hardaFill").style.width =
+    (S.upgCount >= UPG_MAX ? 100 : Math.min(100, S.harda / cost * 100)) + "%";
+  document.getElementById("hardaVal").textContent = fmt(S.harda);
+
+  document.getElementById("expFill").style.width = Math.min(100, S.exp / goal() * 100) + "%";
+  document.getElementById("expVal").textContent = `${fmt(S.exp)}/${fmt(goal())}`;
+
+  const rb = document.getElementById("rebirthBtn");
+  rb.classList.toggle("ready", S.exp >= goal());
+  document.getElementById("rebirthFill").style.width = Math.min(100, S.exp / goal() * 100) + "%";
+  const ot = overTiers();
+  document.getElementById("rebirthTxt").textContent =
+    S.exp >= goal()
+      ? `♻️ ASCEND → x${fmt(2 ** S.level)}` + (ot > 0 ? ` · 🎁 overripe ×${ot}` : "")
+      : `Ascension · level ${S.level} · multiplier x${fmt(global())}`;
+
+  // автоспин скрыт до 1-го перерождения (открывается наградой за престиж, v12)
+  autoBtn.style.display = S.autoUnlocked ? "" : "none";
+  autoBtn.textContent = "Auto-play: " + (S.auto ? "ON" : "OFF");
+  autoBtn.classList.toggle("on", S.auto);
+
+  // окно прокачки: только харда (экспа/спины убраны — balance.md §3, 2026-06-13)
+  document.getElementById("upgWallet").textContent = `you have: 🪙 ${fmt(S.harda)}`;
+  const bH = document.getElementById("upgHarda");
+  if (S.upgCount >= UPG_MAX) {
+    document.getElementById("upgState").textContent =
+      `no upgrades left (${UPG_MAX}/${UPG_MAX}) — milk the run and ascend ♻️`;
+    bH.textContent = `🪙 Coins x${S.hardaMult} · max`;
+    bH.disabled = true;
+  } else {
+    document.getElementById("upgState").textContent =
+      `upgrade ${S.upgCount + 1}/${UPG_MAX} · price 🪙 ${fmt(cost)}`;
+    bH.textContent = `🪙 +50% Coins:  x${S.hardaMult} → x${S.hardaMult + .5}`;
+    bH.disabled = S.harda < cost;
+  }
+  // 🎬/⭐ buy в окне прокачки — только когда не хватает харды и лимит не выбран
+  const upgBuyVis = (S.upgCount < UPG_MAX && S.harda < cost) ? "" : "none";
+  document.getElementById("upgAd").style.display = upgBuyVis;
+  document.getElementById("upgStars").style.display = upgBuyVis;
+  // прогресс-бар прокачки в меню: фон кнопки заполняется по мере покупок 0..5
+  const upgPct = S.upgCount / UPG_MAX * 100;
+  document.getElementById("upgFill").style.width = upgPct + "%";
+  document.getElementById("upgBtnTxt").textContent =
+    S.upgCount >= UPG_MAX ? "Upgrade 5/5 ✓" : `Upgrade ${S.upgCount}/${UPG_MAX}`;
+
+  knob.classList.toggle("off", S.spins < 1);
+  // мигание «хватает на прокачку» / «хватает на ролл гачи»
+  document.getElementById("upgBtn").classList.toggle("blink",
+    S.upgCount < UPG_MAX && S.harda >= cost);
+  // на кнопке гачи — на сколько роллов сейчас хватает харды (v13.4)
+  const collBtn = document.getElementById("collBtn");
+  const rollsAfford = Math.min(MULTI_MAX, Math.floor(S.harda / rollCost()));
+  collBtn.textContent = `Collection 💖 ×${rollsAfford}`;
+  collBtn.classList.toggle("blink", S.harda >= rollCost());
+  // Колеса экспы (v14): как гача — выигранные билеты + на сколько круток хватает харды
+  const wheelBtn = document.getElementById("wheelBtn");
+  const rltAfford = Math.min(MULTI_MAX, Math.floor(S.harda / ticketCost()));
+  wheelBtn.innerHTML = `🎟️ Star Wheel<br><small>${S.tickets} 🎟️ · ×${rltAfford} for 🪙</small>`;
+  wheelBtn.classList.toggle("blink", S.tickets > 0 || S.harda >= ticketCost());
+  // окно колеси открыто — обновить (харда капает автоспином/регеном)
+  if (wheelOverlay.classList.contains("show") && !rltSpinning) updateWheel();
+  // Goals / шкала анлоков (progression.md): кнопка появляется после основного тутора;
+  // small — прогресс до следующей вехи; мигает, когда есть невостребованный дейли-клейм.
+  dailyEnsure();
+  const trackBtn = document.getElementById("trackBtn");
+  trackBtn.style.display = S.tutDone ? "" : "none";
+  const nx = S.track.tier < TRACK.length ? TRACK[S.track.tier] : null;
+  const prevCost = S.track.tier > 0 ? TRACK[S.track.tier - 1].cost : 0;
+  trackBtn.querySelector("small").textContent = nx
+    ? `Next: ${nx.ic} ${Math.max(0, Math.min(S.track.xp, nx.cost) - prevCost)}/${nx.cost - prevCost}`
+    : "All unlocked 🏆";
+  const claimable = (S.daily.tasks || []).some(t => t.done && !t.claimed);
+  trackBtn.classList.toggle("blink", claimable);
+  if (trackOverlay.classList.contains("show")) renderTrack();
+  // гача открыта на галерее — обновить кнопки роллов (харда капает и автоспином)
+  if (gachaOverlay.classList.contains("show") && !rolling && gachaGirl === null && !gachaSummary)
+    renderGacha();
+  // магазин открыт — обновляем таймеры бустов (тикают раз в секунду через update)
+  if (shopOverlay.classList.contains("show")) renderShop();
+  document.getElementById("stSpins").textContent = S.totalSpins;
+  document.getElementById("stWon").textContent = fmt(S.totalWon);
+}
+
+document.getElementById("buildVer").textContent = "build " + BUILD;
+// подпись DEV-кнопки = начальный тир (без записи в localStorage — это лишь догадка) (v13.6)
+document.getElementById("devGfx").textContent = "GFX: " + (GFX_LOW ? "LOW" : "HIGH");
+regen(); update();
+if (tg) {                                  // Telegram Mini App: на весь экран, свайп-вниз не закрывает (мешал бы рычагу)
+  tg.ready(); tg.expand();
+  tg.disableVerticalSwipes && tg.disableVerticalSwipes();
+}
+// клауд-сейв может быть свежее локального (другое устройство) — решение
+// «показывать ли туториал» принимаем только после синка (save.md)
+cloudInit(() => {
+  regen(); update();
+  if (!S.tutDone) tutStart();              // первый запуск — скриптованный туториал (tutorial.md)
+});
+// сворачивание/закрытие: локальный сейв + немедленный флаш в клауд (мимо троттлинга)
+document.addEventListener("visibilitychange", () => { if (document.hidden) { save(); cloudFlush(); } });
+</script>
+</body>
+</html>
