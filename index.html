@@ -241,6 +241,10 @@
     box-shadow: 0 6px 20px rgba(0,0,0,.4), inset 0 1px 1px rgba(255,255,255,.08);
   }
   #metaRow { display: flex; gap: 8px; }
+  /* metaRow-кнопки фикс-высоты ПОД 2 СТРОКИ (v19.2, запрос автора): «Collection ×10»
+     переносит «×10» на 2-ю строку → раньше Shop/Collection росли, а Upgrade (фикс 44px)
+     оставался ниже = баг «кнопка стала меньше». Теперь все три одной высоты, текст по центру */
+  #metaRow .btn { height: 58px; display: flex; align-items: center; justify-content: center; line-height: 1.2; }
   .btn {
     border: none; border-radius: 13px;
     background: linear-gradient(#4a3a72, #33245a); color: #f0e7ff;
@@ -259,7 +263,8 @@
      на десктопе flex мог их сужать (v19, запрос автора «узкие на десктопе»). Высоты не трогаем */
   #meta > .btn { align-self: stretch; width: 100%; }
   /* ⚠️ ЗАФИКСИРОВАНО — НЕ МЕНЯТЬ без явного запроса автора (feel.md §10, «сейчас идеально»).
-     Перерождение/колеса/автоспин = 140px, metaRow/прокачка = 44px. Постоянно ломались — беречь. */
+     Перерождение/колеса/автоспин = 140px, metaRow/прокачка = 58px (v19.2: под 2 строки —
+     Collection «×10» переносится). Постоянно ломались — беречь. */
   #rebirthBtn {
     position: relative; overflow: hidden; background: linear-gradient(#3a2660, #261545); padding: 0; height: 140px;
   }
@@ -279,9 +284,9 @@
   #rebirthBtn.ready #rebirthTxt { color: #1c2208; }
   @keyframes glow { 50% { box-shadow: 0 0 14px #9fd64e; } }
   /* кнопка прокачки = прогресс-бар покупок 0..5 (заливка как у перерождения) */
-  #upgBtn { position: relative; overflow: hidden; padding: 0; height: 44px; }
+  #upgBtn { position: relative; overflow: hidden; padding: 0; height: 58px; }
   #upgFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, #ff6b86, #d8344f); transition: width .35s ease; }
-  #upgBtnTxt { position: relative; z-index: 1; line-height: 44px; }
+  #upgBtnTxt { position: relative; z-index: 1; } /* центрируется флексом #metaRow .btn (line-height:44px убран — был под фикс-44, v19.2) */
   /* автоспин и перерождение — одного размера (v14: ×2 выше, текст по центру) */
   #autoBtn { height: 140px; padding: 0 6px; display: flex; align-items: center; justify-content: center; }
   #autoBtn.on { background: linear-gradient(#6fcdf2, #2f8fd0); color: #062235; }
@@ -1038,7 +1043,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v3 · 2026-06-17";
+const BUILD = "Hoshikuzu v4 · 2026-06-17";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
