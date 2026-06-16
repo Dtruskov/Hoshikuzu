@@ -255,6 +255,9 @@
   /* магазин — золотой, коллекция — розовая */
   #shopBtn { background: linear-gradient(#ffd86a, #f0a818); color: #3a2c06; text-shadow: 0 1px 0 rgba(255,255,255,.3); }
   #collBtn { background: linear-gradient(#ff7ab8, #e8458f); color: #fff; }
+  /* кнопки-столбцы #meta (перерождение/колесо/Goals/автоспин) — всегда во всю ширину панели:
+     на десктопе flex мог их сужать (v19, запрос автора «узкие на десктопе»). Высоты не трогаем */
+  #meta > .btn { align-self: stretch; width: 100%; }
   /* ⚠️ ЗАФИКСИРОВАНО — НЕ МЕНЯТЬ без явного запроса автора (feel.md §10, «сейчас идеально»).
      Перерождение/колеса/автоспин = 140px, metaRow/прокачка = 44px. Постоянно ломались — беречь. */
   #rebirthBtn {
@@ -305,9 +308,13 @@
 
   /* ── Goals — полноэкранный оверлей: дейлики + шкала анлоков (progression.md) ── */
   #trackOverlay { z-index: 12; }
+  /* v19: окно Goals — карточка размером со слот-панель (было full-screen, «съезжало
+     и растягивалось»). .overlay центрирует её; внутренняя раскладка (trkTop/trkScroll) та же */
   #trackOverlay .trkWrap {
-    position: relative; width: 100%; height: 100%;
+    position: relative; width: min(92%, 400px); height: min(86vh, 600px);
     background: #0b0a16; overflow: hidden; display: flex; flex-direction: column;
+    border-radius: 18px; border: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 12px 40px rgba(0,0,0,.6), 0 0 30px rgba(150,90,230,.2);
   }
   .trkTop {
     flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -438,6 +445,17 @@
     70%  { opacity: 1; }
     100% { transform: translate(-50%,-92%) scale(1); opacity: 0; }
   }
+  /* прогресс-бар текущей экспы в окне Колеса (v19): видно, сколько реально набралось
+     (в модалке шапка с экспа-баром не видна) — заполняется с анимацией после крутки */
+  .weBar {
+    width: 100%; height: 12px; border-radius: 7px; background: #0c0a1a; overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,.55);
+  }
+  .weBar > i {
+    display: block; height: 100%; width: 0%;
+    background: linear-gradient(90deg, #bff06a, #6cab2c); transition: width .35s ease;
+  }
+  .weTxt { font-size: 12px; font-weight: 700; color: #c4b3e6; text-align: center; }
 
   /* слой VFX ПОД окнами (z-index 9 < overlay 10): эффекты выигрышных круток барабана
      рендерятся сюда — над игрой, но под любыми модалками (v13). Гача/бонус-эффекты
@@ -474,11 +492,11 @@
   .sheet.scroll { max-height: 86vh; overflow-y: auto; }
   .ggrid, .cgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .girl {
-    background: #2e1c52; border-radius: 12px; padding: 8px 4px;
+    background: #2e1c52; border-radius: 12px; padding: 6px 4px;
     text-align: center; font-size: 12px; cursor: pointer;
   }
   .girl:active { transform: scale(.96); }
-  .girl .gava { font-size: 34px; line-height: 1.3; }
+  .girl .gava { font-size: 30px; line-height: 1.25; }
   .girl .gprog { color: #8a8c96; font-size: 11px; }
   .girl.done { box-shadow: 0 0 10px rgba(255,211,77,.7); }
   .gcard {
@@ -504,6 +522,10 @@
      видимых: «закрыть» одинаков на крутках/замке/карточках (.btn по умолчанию flex:1
      в колонке тянулся бы по-разному). v13.1 */
   #gachaOverlay .btn { flex: 0 0 auto; }
+  /* «via ad» + «10 Stars» в один ряд (v19): три отдельные кнопки роллов давали скролл
+     сетки девочек — теперь 9 девочек влезают без скролла */
+  #gachaAltRow { display: flex; gap: 8px; flex: 0 0 auto; }
+  #gachaAltRow .btn { flex: 1; }
 
   /* ── гача: навигация по страницам (стрелки + номер) ── */
   .gnav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -811,9 +833,9 @@
 <div class="overlay" id="rbOverlay">
   <div class="sheet">
     <h2>Ascension ♻️</h2>
-    <p id="rbInfo">—</p>
-    <p>Resets: Coins, upgrades.<br>Kept forever: win multiplier <b id="rbMult">—</b>, Energy fully restored.</p>
-    <p id="rbOver">—</p>
+    <p class="big" id="rbInfo">—</p>
+    <p>Keep <b id="rbMult">—</b> to all wins forever · Energy refills.</p>
+    <p id="rbOver" style="display:none"></p>
     <button class="btn accent" id="rbGo">Ascend</button>
     <button class="btn" id="rbClose">not now</button>
   </div>
@@ -824,8 +846,10 @@
     <h2 id="gachaTitle">Collection 💖</h2>
     <div id="gachaBody"></div>
     <button class="btn accent" id="gachaRoll" style="display:none">—</button>
-    <button class="btn" id="gachaAd" style="display:none">🎬 Not enough? Roll via ad</button>
-    <button class="btn" id="gachaStars" style="display:none">⭐ Roll for 10 Stars</button>
+    <div id="gachaAltRow" style="display:none">
+      <button class="btn" id="gachaAd">🎬 via ad</button>
+      <button class="btn" id="gachaStars">⭐ 10 Stars</button>
+    </div>
     <p id="gachaLog" style="min-height:18px"></p>
     <button class="btn" id="gachaBack">close</button>
   </div>
@@ -861,6 +885,8 @@
       <div id="wheelHub">🎟️</div>
     </div>
     <p class="big" id="rltState">—</p>
+    <div class="weBar"><i id="weFill"></i></div>
+    <div class="weTxt" id="weTxt">—</div>
     <p id="rltLog" style="min-height:18px"></p>
     <button class="btn accent" id="rltSpin">—</button>
     <button class="btn" id="rltSpinAll" style="display:none">—</button>
@@ -933,6 +959,9 @@ const BOOST_SYMS = SYMS.filter(s => s.boost);
 // В обычной линии не платят и появляются лишь как «честные» декорации (§decorateSpecials)
 const isSpecial = s => !!(s.boost || s.bonus);
 const SPECIALS = SYMS.filter(isSpecial);
+// спецы, которые СЕЙЧАС разрешены (v19 гейтинг): 💎-бонус всегда; буст-символы — только
+// когда открыт магазин. Используется и для декораций, и косвенно гейтит wild-достройку спецов
+const availSpecials = () => SPECIALS.filter(s => s.bonus || S.shopUnlocked);
 // базовые ресурсы (харда/экспа/спины) — то, что платит 3×⚡ супер-вин (билет/спецы — вне)
 const BASE_SYMS = SYMS.filter(s => !s.wild && !isSpecial(s) && !s.ticket);
 const WSUM = SYMS.reduce((a, s) => a + s.w, 0);
@@ -1008,9 +1037,9 @@ const girl = gi => {
 };
 
 /* ═══════════ состояние ═══════════ */
-const SAVE_V = 18; // v18: шкала анлоков + дейлики заменили Созвездие и скрытые триггеры онбординга (бамп = вайп демо-сейвов, тутор перезапускается)
+const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v1 · 2026-06-16";
+const BUILD = "Hoshikuzu v2 · 2026-06-17";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1043,7 +1072,7 @@ const DEFAULTS = () => ({
   // рука; бары и кнопки открываются по ходу обучения (tutorial.md). Флаги аддитивны —
   // старые сейвы грандфазерятся в load() (всё открыто). obSpins — счётчик спинов после
   // вехи (2-е перерождение → автоспин на 3-м спине; автоспин-тутор → магазин на 5-м)
-  barSpins: false, barExp: false,
+  barSpins: false, barHarda: false, barExp: false,
   upgUnlocked: false, gachaUnlocked: false, rebirthUnlocked: false,
   shopUnlocked: false, wheelUnlocked: false, obSpins: 0,
   // автоспин открывается мини-туториалом на 2-м перерождении (v15, было 1-е); autoTutDone — он же
@@ -1111,7 +1140,7 @@ function load() {
         // грандфазер (v15): старый сейв, уже прошедший прежний туториал, не должен вдруг
         // потерять кнопки/бары из-за прогрессивного раскрытия — открываем всё разом
         if (s.tutDone && d.barSpins === undefined) {
-          s.barSpins = s.barExp = s.upgUnlocked = s.gachaUnlocked =
+          s.barSpins = s.barHarda = s.barExp = s.upgUnlocked = s.gachaUnlocked =
             s.rebirthUnlocked = s.shopUnlocked = s.wheelUnlocked = true;
         }
         return s;
@@ -1562,17 +1591,15 @@ async function doSpin(durMul, handY) {
   // каждый из 3 бустов — независимый ролл BOOST_P; если совпали несколько, берём один
   // случайный. Бонус в приоритете, тратить wild-полосу не должны (else-if). balance.md §9
   let boostHit = null;
-  // инапы (бусты) НЕ выигрываются до конца тутора по автоспину (2-е перерождение → L3,
-  // v15.4): не вываливаем монетизационные плюшки на новичка (фидбек: «3 турбо подряд
-  // на 1-м туториальном перерождении»). Гейт по `autoTutDone` — точный маркер «тутор
-  // автоспина пройден»; грандфазер-сейв (L29) его уже имеет → у автора бусты работают
-  if (!bonusHit && !forced && !TUT.active && !overlayOpen() && S.autoTutDone) {
+  // инапы (бусты) НЕ выигрываются, пока не открыт МАГАЗИН (v19, гейтинг по запросу автора:
+  // «не получаем бусты магазина, пока нет магазина»). Гейт по `S.shopUnlocked` — буст-символы
+  // не появляются ни форс-роллом, ни декорациями (availSpecials), ни через wild до магазина
+  if (!bonusHit && !forced && !TUT.active && !overlayOpen() && S.shopUnlocked) {
     const hits = BOOST_SYMS.filter(() => Math.random() < BOOST_P);
     if (hits.length) boostHit = hits[(Math.random() * hits.length) | 0];
   }
   if (bonusHit) {
-    targets[0] = targets[1] = targets[2] = BONUS;
-    dailyProgress("bonus", 1); addTrackXp(BONUS_XP); // 💎-бонф кормит дейли + шкалу (пассив)
+    targets[0] = targets[1] = targets[2] = BONUS; // зачёт дейли/шкалы — в evaluate (и для wild-бонуса)
   } else if (boostHit) {
     targets[0] = targets[1] = targets[2] = boostHit;
   } else if (!forced && S.wildStreak > 0) {
@@ -1630,6 +1657,7 @@ function compatPair(a, b) {
 // Условия: база — проигрыш, первые два не образуют пару (иначе мешали бы прогреву
 // и могли бы дать ложную линию). targets[0]≠targets[1], оба не-wild ⇒ линия = мусор.
 function tryTicketDrop(targets) {
+  if (!S.wheelUnlocked) return false;                    // билет не падает, пока нет Колеса (v19 гейтинг)
   if (overlayOpen()) return false;                       // не во время открытого окна
   if (lineWins(targets).length) return false;            // база — выигрыш, не трогаем
   if (compatPair(targets[0], targets[1])) return false;  // строится прогрев — не мешаем
@@ -1644,7 +1672,11 @@ function tryTicketDrop(targets) {
 function decorateSpecials(targets) {
   if (lineWins(targets).length) return;                       // база — выигрыш, не портим
   if (Math.random() > SPECIAL_DECOY_P) return;
-  const sp = SPECIALS[(Math.random() * SPECIALS.length) | 0];
+  // только спецы открытых фич (v19): 💎 всегда доступен; буст-символы — лишь после магазина.
+  // wild теперь достраивает спецы (см. evaluate) → буст-декор до магазина дал бы буст в обход гейтинга
+  const pool = availSpecials();
+  if (!pool.length) return;
+  const sp = pool[(Math.random() * pool.length) | 0];
   if (Math.random() < SPECIAL_PAIR_P) {
     // ПАРА одинаковых спецов на первых двух барабанах (v15.3): compatPair даёт прогрев
     // третьего → честный near-miss «два сошлись, третий мимо» + «вздох». НИКОГДА не 3
@@ -1660,8 +1692,8 @@ function decorateSpecials(targets) {
 function lineWins(centers) {
   const reals = centers.filter(s => !s.wild);
   if (reals.length === 0) return BASE_SYMS;                 // 3×⚡ — супер-вин всех трёх базовых
-  // спец-символ (бонус/буст) в линии обычным путём НЕ платит (только форс-ролл,
-  // обрабатывается до lineWins) — иначе wild+2 декора давали бы фантомный «выигрыш»
+  // линия СО спецом сюда попадает только когда спецы РАЗНЫЕ или спец+база (мусор) —
+  // одинаковые спецы (+wild) уже выплачены ветками bonus/boost в evaluate ДО lineWins (v19)
   if (reals.some(isSpecial)) return [];
   if (reals.every(s => s === reals[0])) return [reals[0]];  // не-wild совпали (wild подменил остальные)
   return [];                                                 // два разных реальных = мусор
@@ -1670,22 +1702,26 @@ function lineWins(centers) {
 // возвращает true, если был выигрыш (для «вздоха» промаха после прогрева)
 function evaluate() {
   const centers = reels.map(r => r.syms[r.center]);
-  // бонус 💎💎💎 на линии → окно рекламы (balance.md §8). Своя ветка до lineWins:
-  // символ bonus не-wild и из randSym не выпадает, сюда попадает только форс-роллом
-  if (centers.every(s => s === BONUS)) {
+  // wild ⚡ достраивает ЛЮБОЙ символ, включая спецы (v19, запрос автора): спец-комбо
+  // считаем по НЕ-wild барабанам. 3×⚡ (nonWild пуст) сюда НЕ попадает — это супер-вин ниже
+  const nonWild = centers.filter(s => !s.wild);
+  // Grand Bonus: все НЕ-wild = 💎 (≥1) → wild достроил до 💎💎💎 → окно рекламы (balance.md §8).
+  // 💎 НЕ гейтится фичей (ядро монетизации, доступен всегда после тутора)
+  if (nonWild.length >= 1 && nonWild.every(s => s === BONUS)) {
     loseStreak = 0;
     winline.classList.remove("old");
     reels.forEach(r => r.strip.children[r.center].classList.add("hit"));
     winTxt.textContent = "💎 GRAND BONUS!!!";
     goldFlash(); say("bigwin", "🤩");
+    dailyProgress("bonus", 1); addTrackXp(BONUS_XP); // 💎 кормит дейли + шкалу (и форс-ролл, и wild-бонус)
     bonusLanded = true;          // заморозить барабаны до закрытия окна награды
     setTimeout(showBonus, 650);  // дать увидеть 💎💎💎 на линии, потом окно рекламы
     return true;
   }
-  // буст-символ 🚀/🍀/✨ 3-в-ряд (v13.5): инап выигран — применяем сразу + крупный
-  // текст, без окна. Своя ветка до lineWins: буст не-wild, из randSym не выпадает (balance.md §9)
-  if (centers[0].boost && centers.every(s => s === centers[0])) {
-    grantBoost(centers[0]);
+  // буст 🚀/🍀/✨: все НЕ-wild = один и тот же буст (wild достроил) → инап сразу, без окна.
+  // Только при открытом магазине (v19 гейтинг — буст-символы до него вообще не появляются)
+  if (S.shopUnlocked && nonWild.length >= 1 && nonWild[0].boost && nonWild.every(s => s === nonWild[0])) {
+    grantBoost(nonWild[0]);
     return true;
   }
   // билет 🎟️ выпал «мусором» (v14): +1 билет в Колесу экспы. Это не выигрыш линии
@@ -1979,14 +2015,13 @@ const rbOverlay = document.getElementById("rbOverlay");
 document.getElementById("rebirthBtn").addEventListener("click", () => {
   const t = overTiers();
   document.getElementById("rbInfo").textContent =
-    `EXP: ${fmt(S.exp)} / ${fmt(goal())}. ` +
-    (S.exp >= goal() ? (t ? `Overripe ×${t}!` : "Ready to ascend!") : "Not enough yet.");
+    `EXP ${fmt(S.exp)} / ${fmt(goal())} · ` +
+    (S.exp >= goal() ? (t ? `Ready · overripe ×${t}!` : "Ready!") : "Not enough yet");
   document.getElementById("rbMult").textContent = "x" + fmt(2 ** S.level);
-  // перезрел: можно не жать сразу — экспа сверх цели копится в стартовую харду
-  document.getElementById("rbOver").textContent = t > 0
-    ? `🎁 Overripe ×${t}: start next run with Coins for ${t} Collection roll${t === 1 ? "" : "s"}` +
-      (t >= OVER_MAX ? " (max!)" : ". Each +50% of the goal = +1 more (max 4)")
-    : `🎁 Overripe: EXP above the goal isn't lost — each +50% of the goal = starting Coins for 1 Collection roll (max 4)`;
+  // перезрел (показываем коротко, только когда есть): экспа сверх цели → стартовая харда
+  const over = document.getElementById("rbOver");
+  if (t > 0) { over.style.display = ""; over.textContent = `🎁 Overripe ×${t} — bonus starting Coins next run`; }
+  else over.style.display = "none";
   document.getElementById("rbGo").disabled = S.exp < goal();
   rbOverlay.classList.add("show");
   if (TUT.step === "rebirthTut") miniTutEnd(); // снять блокеры — окно перерождения живое (v15)
@@ -2091,6 +2126,10 @@ function updateWheel() {
     rltAllBtn.textContent = `SPIN ALL ×${k}` + (buy ? ` (buy ${buy})` : "");
     rltAllBtn.disabled = rltSpinning;
   } else rltAllBtn.style.display = "none";
+  // прогресс-бар текущей экспы (v19): после крутки updateWheel() зовётся в done-колбэке →
+  // ширина анимируется к новому значению, игрок видит реальный прирост
+  document.getElementById("weFill").style.width = Math.min(100, S.exp / goal() * 100) + "%";
+  document.getElementById("weTxt").textContent = `🧿 EXP ${fmt(S.exp)} / ${fmt(goal())}`;
 }
 
 // одиночная крутка
@@ -2171,23 +2210,26 @@ rltAllBtn.addEventListener("click", rltSpinAll);
 // Бонус-ступени дают перм. exp/coin % (кормят metaBonus) или расходники. Числа — демо, тюнятся в balance.md.
 const ASCEND_XP = 25, WIN_XP = 1, BONUS_XP = 4, DAILY_ALL_BONUS = 30;
 // ступени: feat (какая фича) · exp/coin (перм. %) · spins/tickets/turbo (расходник) · patron (exp+coin)
+// v19: магазин должен открыться за 1-ю сессию (запрос автора). Путь к нему — только 3 feature-
+// ступени без филлеров (пожертвовали ранний «+5 Energy»): rebirth 30 → auto 90 → shop 180.
+// За сессию набирается ~250 track-опыта (дейлики ~155 + перерождения + вины) → 180 достижимо.
+// Бонус-филлеры (+%/расходники) сдвинуты ПОСЛЕ магазина. progression.md §2.
 const TRACK = [
-  { cost: 40,   kind: "feat",    feat: "rebirth", ic: "♻️", name: "Ascension unlocked" },
-  { cost: 100,  kind: "spins",   val: 5,          ic: "🎲", name: "+5 Energy" },
-  { cost: 170,  kind: "feat",    feat: "auto",    ic: "🐢", name: "Auto-play unlocked" },
-  { cost: 240,  kind: "exp",     val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
-  { cost: 320,  kind: "feat",    feat: "shop",    ic: "🛒", name: "Shop unlocked" },
-  { cost: 410,  kind: "turbo",   val: 60,         ic: "🚀", name: "Turbo boost" },
-  { cost: 520,  kind: "coin",    val: 0.03,       ic: "🪙", name: "+3% Coins forever" },
-  { cost: 650,  kind: "feat",    feat: "wheel",   ic: "🎟️", name: "Star Wheel unlocked" },
-  { cost: 820,  kind: "exp",     val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
-  { cost: 1020, kind: "tickets", val: 5,          ic: "🎟️", name: "+5 Tickets" },
-  { cost: 1260, kind: "coin",    val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
-  { cost: 1540, kind: "exp",     val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
-  { cost: 1860, kind: "spins",   val: 10,         ic: "🎲", name: "+10 Energy" },
-  { cost: 2240, kind: "coin",    val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
-  { cost: 2680, kind: "exp",     val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
-  { cost: 3200, kind: "patron",  val: 0.10,       ic: "🏆", name: "Patron — +10% EXP & Coins" },
+  { cost: 30,   kind: "feat",    feat: "rebirth", ic: "♻️", name: "Ascension unlocked" },
+  { cost: 90,   kind: "feat",    feat: "auto",    ic: "🐢", name: "Auto-play unlocked" },
+  { cost: 180,  kind: "feat",    feat: "shop",    ic: "🛒", name: "Shop unlocked" },
+  { cost: 280,  kind: "exp",     val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
+  { cost: 400,  kind: "turbo",   val: 60,         ic: "🚀", name: "Turbo boost" },
+  { cost: 540,  kind: "coin",    val: 0.03,       ic: "🪙", name: "+3% Coins forever" },
+  { cost: 700,  kind: "feat",    feat: "wheel",   ic: "🎟️", name: "Star Wheel unlocked" },
+  { cost: 900,  kind: "exp",     val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
+  { cost: 1120, kind: "tickets", val: 5,          ic: "🎟️", name: "+5 Tickets" },
+  { cost: 1380, kind: "coin",    val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
+  { cost: 1680, kind: "exp",     val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
+  { cost: 2020, kind: "spins",   val: 10,         ic: "🎲", name: "+10 Energy" },
+  { cost: 2420, kind: "coin",    val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
+  { cost: 2880, kind: "exp",     val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
+  { cost: 3400, kind: "patron",  val: 0.10,       ic: "🏆", name: "Patron — +10% EXP & Coins" },
 ];
 const FEAT_FLAG = { rebirth: "rebirthUnlocked", auto: "autoUnlocked", shop: "shopUnlocked", wheel: "wheelUnlocked" };
 
@@ -2365,7 +2407,8 @@ const gachaRoll = document.getElementById("gachaRoll"), gachaLog = document.getE
 const gachaAd = document.getElementById("gachaAd");
 const gachaStars = document.getElementById("gachaStars");
 // видимость 🎬/⭐ в гаче всегда совпадает (обе появляются, когда не хватает на ролл)
-const setGachaAd = show => { gachaAd.style.display = gachaStars.style.display = show ? "" : "none"; };
+const gachaAltRow = document.getElementById("gachaAltRow");
+const setGachaAd = show => { gachaAltRow.style.display = show ? "flex" : "none"; };
 const gachaBack = document.getElementById("gachaBack");
 let gachaGirl = null;    // null = галерея страницы, число = глобальный индекс девочки (её карточки)
 let gachaPage = 0;       // какую страницу (9 девочек) смотрим; стрелки ◀▶ переключают (v13)
@@ -3154,7 +3197,8 @@ function tutOnSpinEnd() {
   if (TUT.step === "swipe1") {
     TUT.spins = (TUT.spins | 0) + 1;
     S.barSpins = true;                 // спины-бар появляется с 1-й круткой (энергия) — v15
-    if (TUT.spins >= 3) {              // 3 крутки → открываем харда-бар + прокачку
+    S.barHarda = true;                 // Coins-бар — сразу с 1-го выигрыша монет (v19, тутор форсит тройку харды)
+    if (TUT.spins >= 3) {              // 3 крутки → открываем прокачку (Coins-бар уже виден)
       S.upgUnlocked = true; update(); save();
       setTimeout(() => tutGoto("upgOpen"), 700);
     } else { update(); setTimeout(tutRender, 700); }
@@ -3293,7 +3337,7 @@ function update() {
   // прогрессивное раскрытие UI (v15): бары и кнопки видны только после своей вехи
   // обучения (tutorial.md). Только display — высоты кнопок не трогаем (feel.md §10)
   document.getElementById("spinsBar").style.display = S.barSpins ? "" : "none";
-  document.getElementById("hardaBar").style.display = S.upgUnlocked ? "" : "none";
+  document.getElementById("hardaBar").style.display = S.barHarda ? "" : "none"; // Coins-бар — с первых монет (v19), не с прокачки
   document.getElementById("expBar").style.display = S.barExp ? "" : "none";
   document.getElementById("shopBtn").style.display = S.shopUnlocked ? "" : "none";
   document.getElementById("upgBtn").style.display = S.upgUnlocked ? "" : "none";
