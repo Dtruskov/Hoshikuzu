@@ -115,52 +115,54 @@
   /* ── middle: reels + lever ── */
   #mid { display: flex; gap: 10px; align-items: stretch; }
   #main { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  /* лоток для костей (v20): кости стоят в ряд по центру, перспектива на каждой .die */
+  /* лоток-«стол» (v20.1): тёплое дерево/фетр; вид сверху; кости падают и замирают в 3 зонах */
   #board {
-    background: linear-gradient(160deg, #3c2369, #281548);
-    border-radius: 18px; padding: 26px 14px;
-    display: flex; gap: 16px; justify-content: center; align-items: center;
-    position: relative; transition: transform .1s; min-height: 150px;
-    border: 2px solid rgba(255,207,90,.55);
-    box-shadow:
-      0 0 0 3px rgba(120,70,180,.45),
-      0 10px 28px rgba(0,0,0,.55),
-      0 0 32px rgba(170,110,230,.32),
-      inset 0 2px 5px rgba(255,255,255,.16);
+    background:
+      radial-gradient(130% 100% at 50% 22%, #7a5530, #553722 62%, #3a2513),
+      #3a2513;
+    border-radius: 18px; padding: 18px 10px; min-height: 172px; overflow: hidden;
+    display: flex; justify-content: space-around; align-items: center;
+    position: relative; transition: transform .1s;
+    border: 2px solid rgba(120,82,42,.85);
+    box-shadow: 0 10px 28px rgba(0,0,0,.55), inset 0 2px 14px rgba(0,0,0,.5),
+      inset 0 0 70px rgba(0,0,0,.42);
   }
-  /* ── 3D игральная кость: .die (подброс) > .scene (перспектива) > .cube (вращение) > 6×.face.
-     Слои разделены намеренно: перспектива и transform-подброс на РАЗНЫХ элементах — иначе
-     анимация translateY на перспективном элементе может «сплющивать» 3D в части движков ── */
-  .die { width: 78px; height: 78px; flex: none; position: relative; }
-  .die.toss { animation: dieToss var(--td, 900ms) ease-out; }
-  @keyframes dieToss {
-    0% { transform: translateY(0); }   18% { transform: translateY(-30px); }
-    40% { transform: translateY(0); }  56% { transform: translateY(-11px); }
-    73% { transform: translateY(0); }  86% { transform: translateY(-4px); }
-    100% { transform: translateY(0); }
+  /* ── 3D кость: .die (позиция в зоне) > .shadow (контактная тень на столе) + .scene
+     (перспектива/падение) > .cube (кувырок вокруг ПЕРЕДНЕГО НИЖНЕГО РЕБРА касания) > 6×.face.
+     Грани БЕЗ скругления — углы сходятся, дыр на стыках нет (v20.1) ── */
+  .die { width: 60px; height: 60px; flex: none; position: relative; will-change: transform; }
+  .shadow {
+    position: absolute; left: 50%; top: 70%; width: 66px; height: 26px; z-index: 0;
+    transform: translate(-50%, -50%); border-radius: 50%; opacity: .4;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,.55), rgba(0,0,0,0) 72%);
+    pointer-events: none;
   }
-  .scene { position: absolute; inset: 0; perspective: 620px; }
-  .cube { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; }
+  .scene { position: absolute; inset: 0; perspective: 360px; perspective-origin: 50% 40%; z-index: 1; }
+  .scene.drop { animation: dieDrop var(--td, 900ms) cubic-bezier(.2,.7,.25,1); }
+  @keyframes dieDrop { /* падение «сверху на стол»: близко к камере (крупнее) → шлепок → покой */
+    0% { transform: scale(1.22); } 68% { transform: scale(.97); }
+    84% { transform: scale(1.03); } 100% { transform: scale(1); }
+  }
+  .cube { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform;
+    transform-origin: 50% 100% -30px; } /* пивот = переднее нижнее ребро (точка касания стола) */
   .face {
-    position: absolute; width: 78px; height: 78px; border-radius: 13px;
+    position: absolute; width: 60px; height: 60px;
     display: flex; align-items: center; justify-content: center; backface-visibility: hidden;
-    background: linear-gradient(150deg, #faf3cf, #ddd3a0);
-    box-shadow: inset 0 0 0 2px rgba(255,207,90,.6), inset 0 5px 11px rgba(0,0,0,.18),
-      inset 0 -4px 8px rgba(0,0,0,.12);
+    background: linear-gradient(150deg, #fbf5d6 0%, #efe6b8 45%, #dccfa0 100%);
+    box-shadow: inset 0 0 0 1.5px rgba(110,82,28,.6), inset 0 0 16px rgba(80,55,15,.28);
   }
-  .face .sym { font-size: 46px; line-height: 1; pointer-events: none; }
-  .face.f-front  { transform: rotateY(  0deg) translateZ(39px); }
-  .face.f-back   { transform: rotateY(180deg) translateZ(39px); }
-  .face.f-right  { transform: rotateY( 90deg) translateZ(39px); }
-  .face.f-left   { transform: rotateY(-90deg) translateZ(39px); }
-  .face.f-top    { transform: rotateX( 90deg) translateZ(39px); }
-  .face.f-bottom { transform: rotateX(-90deg) translateZ(39px); }
-  /* бит выигрыша: кость подпрыгивает и светится (v20). Анимируем .die (внешний) —
-     бросок (toss) уже отыграл к моменту вина, конфликта по transform нет */
-  .die.hit { animation: diepop .6s cubic-bezier(.2,1.4,.4,1); }
+  .face .sym { font-size: 34px; line-height: 1; pointer-events: none; }
+  .face.f-front  { transform: rotateY(  0deg) translateZ(30px); }
+  .face.f-back   { transform: rotateY(180deg) translateZ(30px); }
+  .face.f-right  { transform: rotateY( 90deg) translateZ(30px); }
+  .face.f-left   { transform: rotateY(-90deg) translateZ(30px); }
+  .face.f-top    { transform: rotateX( 90deg) translateZ(30px); }
+  .face.f-bottom { transform: rotateX(-90deg) translateZ(30px); }
+  /* бит выигрыша: кость подпрыгивает-светится — на .scene (чтобы не перебить позицию .die) */
+  .die.hit .scene { animation: diepop .6s cubic-bezier(.2,1.4,.4,1); }
   @keyframes diepop {
     0% { transform: scale(1); }
-    38% { transform: scale(1.22); filter: drop-shadow(0 0 14px #ffd34d) brightness(1.3); }
+    38% { transform: scale(1.2); filter: drop-shadow(0 0 12px #ffd34d) brightness(1.25); }
     100% { transform: scale(1); }
   }
   #board.goldflash { animation: goldflash .5s ease; }
@@ -1024,7 +1026,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v5 · 2026-06-17 · dice";
+const BUILD = "Hoshikuzu v6 · 2026-06-17 · dice-table";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1354,14 +1356,11 @@ const randSym = () => {
 // стаггер) → каждый бросок выглядит иначе, но садится детерминированно. Сигнатура spinReel
 // сохранена → doSpin/evaluate почти не меняются (читают r.landed вместо центра ленты).
 const FACE_CLS = ["f-front", "f-back", "f-right", "f-left", "f-top", "f-bottom"];
-// поворот куба (deg), выводящий грань F к зрителю: 0 front 1 back 2 right 3 left 4 top 5 bottom
-const BASE_ROT = [
-  { rx: 0, ry: 0 }, { rx: 0, ry: 180 }, { rx: 0, ry: -90 },
-  { rx: 0, ry: 90 }, { rx: -90, ry: 0 }, { rx: 90, ry: 0 },
-];
-// эмодзи «незначащих» граней — антураж (базовые ресурсы + wild); значащая грань ставится в бросок
+// эмодзи «незначащих» граней — антураж (базовые ресурсы + wild); передняя грань = результат броска
 const FILLERS = [SYMS[0], SYMS[1], SYMS[2], SYMS[3], SYMS[0], SYMS[2]];
 const reels = [...document.querySelectorAll(".die")].map((el, idx) => {
+  const shadow = document.createElement("div");
+  shadow.className = "shadow";
   const scene = document.createElement("div");
   scene.className = "scene";
   const cube = document.createElement("div");
@@ -1374,9 +1373,9 @@ const reels = [...document.querySelectorAll(".die")].map((el, idx) => {
     return f;
   });
   scene.appendChild(cube);
-  el.appendChild(scene);
-  cube.style.transform = "rotateX(0deg) rotateY(0deg)";
-  return { el, cube, faces, idx, rx: 0, ry: 0, landed: SYMS[0] };
+  el.appendChild(shadow); el.appendChild(scene);
+  cube.style.transform = "rotateZ(0deg) rotateX(0deg) rotateY(0deg)";
+  return { el, scene, shadow, cube, faces, idx, rx: 0, ry: 0, rz: 0, landed: SYMS[0] };
 });
 // наименьший угол ≥ cur+spins·360, конгруэнтный target по модулю 360 (вращаем всегда ВПЕРЁД)
 function alignForward(cur, target, spins) {
@@ -1388,31 +1387,41 @@ function rollTicks(dur) {
   const K = Math.max(6, Math.round(dur / 95));
   for (let k = 1; k <= K; k++) setTimeout(sTick, dur * (1 - (1 - k / K) ** 2));
 }
-// бросок одной кости: садится на target. Promise резолвится после стыковки (как прежний
-// spinReel). heat (прогрев третьей кости) → дольше + лишний оборот + золотое свечение
+// бросок кости (v20.1, «кинули на стол»): результат всегда на ПЕРЕДНЕЙ грани (вид сверху →
+// она «вверх»); кость кувыркается вокруг ПЕРЕДНЕГО НИЖНЕГО РЕБРА (transform-origin в CSS =
+// точка касания стола, НЕ центр куба), падает (scale на .scene + тень) и замирает в своей зоне
+// со случайным сдвигом и разворотом. heat (3-я кость) → дольше + лишний кувырок + свечение.
+// Сигнатура сохранена → doSpin/evaluate не меняются (читают r.landed).
 function spinReel(r, target, idx, durMul, heat) {
   return new Promise(resolve => {
     r.landed = target;
-    const F = (Math.random() * 6) | 0;            // случайная грань приземления → «диковее»
-    r.faces.forEach((f, i) =>
-      f.querySelector(".sym").textContent = (i === F ? target : FILLERS[i]).emoji);
-    const lo = GFX_LOW ? 1 : 2;                    // на слабых меньше оборотов
-    const sx = lo + ((Math.random() * 3) | 0);
-    const sy = lo + ((Math.random() * 3) | 0) + (heat ? 1 : 0);
-    r.rx = alignForward(r.rx, BASE_ROT[F].rx, sx);
-    r.ry = alignForward(r.ry, BASE_ROT[F].ry, sy);
-    const dur = (760 + idx * 220 + (heat ? 520 : 0)) * durMul;
-    r.cube.style.transition = `transform ${dur}ms cubic-bezier(.18,.62,.2,1)`;
-    void r.cube.offsetWidth;                        // reflow → transition подхватит новый transform
-    r.cube.style.transform = `rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
-    if (!GFX_LOW) {                                 // «подброс» кости с отскоком (на .die, свой transform)
-      r.el.classList.remove("toss"); void r.el.offsetWidth;
-      r.el.style.setProperty("--td", dur + "ms"); r.el.classList.add("toss");
+    r.faces[0].querySelector(".sym").textContent = target.emoji; // передняя грань = результат
+    const lo = GFX_LOW ? 1 : 2;
+    const turnsX = lo + ((Math.random() * 2) | 0) + (heat ? 1 : 0); // перекаты через переднее ребро
+    const turnsY = GFX_LOW ? 0 : ((Math.random() * 2) | 0);
+    r.rx = alignForward(r.rx, 0, turnsX);          // ←0 (mod 360) → передняя грань вверх в покое
+    r.ry = alignForward(r.ry, 0, turnsY);
+    r.rz = alignForward(r.rz, 0, GFX_LOW ? 0 : 1) + (Math.random() * 24 - 12); // спин + финальный yaw ±12°
+    const jx = Math.random() * 30 - 15, jy = Math.random() * 18 - 9; // джиттер позиции в зоне (без пересечений)
+    const dur = (820 + idx * 200 + (heat ? 520 : 0)) * durMul;
+    const ease = "cubic-bezier(.2,.7,.25,1)";
+    r.cube.style.transition = `transform ${dur}ms ${ease}`;
+    void r.cube.offsetWidth;                         // reflow → transition подхватит новый transform
+    r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
+    r.el.style.transition = `transform ${dur}ms ${ease}`;
+    r.el.style.transform = `translate(${jx}px, ${jy}px)`; // едет в свою зону на столе
+    if (!GFX_LOW) {                                  // падение «сверху на стол» + тень темнеет к посадке
+      r.scene.style.setProperty("--td", dur + "ms");
+      r.scene.classList.remove("drop"); void r.scene.offsetWidth; r.scene.classList.add("drop");
+      r.shadow.style.transition = "none"; r.shadow.style.opacity = ".16"; void r.shadow.offsetWidth;
+      r.shadow.style.transition = `opacity ${dur}ms ease-out`; r.shadow.style.opacity = ".42";
     }
     if (heat) r.el.classList.add("heat");
     rollTicks(dur);
     setTimeout(() => {
-      r.el.classList.remove("heat", "toss");
+      r.el.classList.remove("heat");
+      r.scene.classList.remove("drop");
+      r.scene.style.transform = "";                  // освободить .scene для win-pop (.die.hit .scene)
       sThud(); vibrate(15);
       resolve();
     }, dur);
