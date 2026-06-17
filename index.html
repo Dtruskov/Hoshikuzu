@@ -118,12 +118,12 @@
   /* лоток-«стол» (v20.2): тёплое дерево/фетр; вид сверху. overflow видимый — кости подлетают над столом */
   #board {
     background:
-      radial-gradient(130% 100% at 50% 22%, #7a5530, #553722 62%, #3a2513),
-      #3a2513;
+      radial-gradient(130% 100% at 50% 22%, #4a3270, #33215a 62%, #241640),
+      #241640; /* тёмно-фиолетовый стол, чуть светлее фона страницы (v20.7) */
     border-radius: 18px; padding: 18px 10px; min-height: 164px;
     display: flex; justify-content: space-around; align-items: center;
     position: relative; transition: transform .1s;
-    border: 2px solid rgba(120,82,42,.85);
+    border: 2px solid rgba(150,120,205,.5);
     box-shadow: 0 10px 28px rgba(0,0,0,.55), inset 0 2px 14px rgba(0,0,0,.5),
       inset 0 0 70px rgba(0,0,0,.42);
   }
@@ -151,10 +151,16 @@
     background: radial-gradient(ellipse at center, rgba(0,0,0,.62), rgba(0,0,0,0) 72%);
     pointer-events: none;
   }
-  .shadow.land { animation: shadowImpact .32s ease-out; } /* «шлепок» тени при касании */
-  @keyframes shadowImpact {
-    0%   { transform: translate(-50%,-50%) scale(1.55); opacity: .62; }
-    100% { transform: translate(-50%,-50%) scale(1); opacity: .42; }
+  /* тень растёт ПРОПОРЦИОНАЛЬНО кубу (v20.7): крупнее/бледнее пока куб высоко → шлепок на удар */
+  .shadow.throw { animation: shadowThrow var(--td, 1500ms) cubic-bezier(.77,0,.175,1); }
+  @keyframes shadowThrow {
+    0%   { transform: translate(-50%,-50%) scale(1);    opacity: .42; }
+    5%   { transform: translate(-50%,-50%) scale(1.28); opacity: .3; }
+    38%  { transform: translate(-50%,-50%) scale(1.3);  opacity: .28; }
+    68%  { transform: translate(-50%,-50%) scale(1.12); opacity: .4; }
+    75%  { transform: translate(-50%,-50%) scale(1.5);  opacity: .62; }  /* УДАР — шлепок */
+    82%  { transform: translate(-50%,-50%) scale(1.05); opacity: .42; }
+    100% { transform: translate(-50%,-50%) scale(1);    opacity: .42; }
   }
   /* прыжок → пик(спин+блюр) → падение → УДАР(сквош) → подскок → покой. Магнитуду тюнить ЗДЕСЬ */
   .lift { position: absolute; inset: 0; will-change: transform, filter; transform-origin: 50% 50%; } /* скейл/сквош строго от ЦЕНТРА (v20.6) */
@@ -163,9 +169,9 @@
   .lift.throw { animation: diceThrow var(--td, 1500ms) cubic-bezier(.77,0,.175,1); }
   @keyframes diceThrow {
     0%   { transform: translateY(2px)    scaleX(1.1)  scaleY(.85); filter: blur(0); }    /* рывок вверх */
-    5%   { transform: translateY(-90px)  scaleX(1.28) scaleY(1.28); filter: blur(5px); } /* быстрый взлёт: крупнее ×1.3 + блюр */
-    38%  { transform: translateY(-104px) scaleX(1.3)  scaleY(1.3);  filter: blur(6px); } /* апекс */
-    68%  { transform: translateY(-28px)  scaleX(1.12) scaleY(1.12); filter: blur(2px); } /* падает, к норме */
+    5%   { transform: translateY(-90px)  scaleX(1.28) scaleY(1.28); filter: blur(2.5px); } /* быстрый взлёт: крупнее ×1.3 + лёгкий блюр */
+    38%  { transform: translateY(-104px) scaleX(1.3)  scaleY(1.3);  filter: blur(3px); }   /* апекс */
+    68%  { transform: translateY(-28px)  scaleX(1.12) scaleY(1.12); filter: blur(1px); }   /* падает, к норме */
     75%  { transform: translateY(0)      scaleX(1.2)  scaleY(.68);  filter: blur(0); }    /* УДАР о стол: сквош */
     84%  { transform: translateY(-30px)  scaleX(.93)  scaleY(1.1); }                       /* отскок 1 */
     91%  { transform: translateY(0)      scaleX(1.1)  scaleY(.9); }                        /* касание */
@@ -177,8 +183,8 @@
   .face {
     position: absolute; width: 60px; height: 60px;
     display: flex; align-items: center; justify-content: center; backface-visibility: hidden;
-    background: linear-gradient(150deg, #fbf5d6 0%, #efe6b8 45%, #dccfa0 100%);
-    box-shadow: inset 0 0 0 1.5px rgba(110,82,28,.6), inset 0 0 16px rgba(80,55,15,.28);
+    background: linear-gradient(150deg, #ffffff 0%, #f2ecfb 48%, #ddd2f0 100%); /* ближе к белому (v20.7) */
+    box-shadow: inset 0 0 0 1.5px rgba(120,100,170,.55), inset 0 0 16px rgba(70,55,110,.22);
   }
   .face .sym { font-size: 34px; line-height: 1; pointer-events: none; }
   .face.f-front  { transform: rotateY(  0deg) translateZ(30px); }
@@ -1064,7 +1070,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v11 · 2026-06-17 · dice-throw5";
+const BUILD = "Hoshikuzu v12 · 2026-06-17 · dice-throw6";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1458,18 +1464,22 @@ function landRing(el) {
 // спин куба завершается до касания). Сигнатура сохранена → doSpin/evaluate не меняются.
 function spinReel(r, target, idx, durMul, heat) {
   return new Promise(resolve => {
-    r.landed = target;
-    r.faces[0].querySelector(".sym").textContent = target.emoji;
+    r.landed = target; // ЛОГИЧЕСКИЙ результат сразу; ВИЗУАЛЬНАЯ подмена грани — позже, в полёте (см. ниже)
     // быстрый многоосевой спин в воздухе: 4–6 оборотов (рандом) в РАЗНЫЕ стороны, кончается передней гранью вверх
     r.rx = spinTarget(r.rx, (GFX_LOW ? 2 : 4) + ((Math.random() * 3) | 0), rdir()); // 4..6 оборотов, рандомное направление
     r.ry = spinTarget(r.ry, (GFX_LOW ? 1 : 2) + ((Math.random() * 2) | 0), rdir()); // многоосевой хаос
     r.rz = spinTarget(r.rz, 2, rdir()) + (Math.random() * 24 - 12); // спин + финальный yaw ±12°
-    const jx = Math.random() * 60 - 30, jy = Math.random() * 34 - 17; // сильнее меняем позицию между роллами
+    // позицию смещаем НАРУЖУ по своей зоне (лево только влево, право только вправо) → разлёт без пересечений
+    const jx = idx === 0 ? -(Math.random() * 30) : idx === 2 ? (Math.random() * 30) : (Math.random() * 30 - 15);
+    const jy = Math.random() * 34 - 17;
     // total ≈1.5с (тюнить): ~75% воздух + ~25% отскоки. Авто/турбо масштабирует durMul, но кап 2с
     const dur = Math.min((1500 + (heat ? 250 : 0) + Math.random() * 120) * durMul, 2000);
     const spinDur = dur * (GFX_LOW ? 0.62 : 0.72);
     // КАСКАД слева-направо: каждая следующая кость стартует и приземляется чуть позже (v20.6)
     const delay = GFX_LOW ? 0 : idx * 130;
+    // ВИЗУАЛЬНАЯ подмена грани на результат — когда кость уже в воздухе и крутится/размыта (v20.7),
+    // чтобы игрок не видел, как грань «перещёлкивается» в самом начале броска
+    setTimeout(() => { r.faces[0].querySelector(".sym").textContent = target.emoji; }, delay + 160);
     setTimeout(() => {
       // ПОЗИЦИЯ доезжает в «точку падения» ЗА ВРЕМЯ ВОЗДУХА (~74%), НЕ за весь ролл — иначе кость
       // «ползёт по столу» после остановки. Колоколообразно (ease-in-out: медленно-быстро-медленно)
@@ -1479,23 +1489,24 @@ function spinReel(r, target, idx, durMul, heat) {
       r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.77,0,.175,1)`;
       void r.cube.offsetWidth;
       r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
-      // прыжок/падение/сквош/блюр — keyframe на .lift (GFX_LOW: без прыжка/блюра)
+      // прыжок/падение/сквош/блюр (.lift) + тень растёт пропорционально кубу (.shadow). GFX_LOW: без этого
       if (!GFX_LOW) {
         r.lift.style.setProperty("--td", dur + "ms");
         r.lift.classList.remove("throw"); void r.lift.offsetWidth; r.lift.classList.add("throw");
+        r.shadow.style.setProperty("--td", dur + "ms");
+        r.shadow.classList.remove("throw"); void r.shadow.offsetWidth; r.shadow.classList.add("throw");
       }
       if (heat) r.el.classList.add("heat");
       rollTicks(spinDur);
-      // ИМПАКТ приземления (~75% прыжка): VFX + звук + вибро + «шлепок» тени
+      // ИМПАКТ приземления (~75% прыжка): звук + вибро + кольцо пыли (шлепок тени — в shadowThrow)
       setTimeout(() => {
         sThud(); vibrate(heat ? 28 : 20);
-        r.shadow.classList.remove("land"); void r.shadow.offsetWidth; r.shadow.classList.add("land");
         if (!GFX_LOW) landRing(r.el);
       }, dur * 0.75);
     }, delay);
     setTimeout(() => {
       r.el.classList.remove("heat");
-      r.shadow.classList.remove("land");
+      r.shadow.classList.remove("throw");
       r.lift.classList.remove("throw");
       resolve();
     }, delay + dur);
