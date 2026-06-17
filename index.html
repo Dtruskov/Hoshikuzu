@@ -518,9 +518,10 @@
   /* ═══ канвас-VFX (v21): один слой поверх всего — частицы/цифры/ливень дёшево на GPU ═══ */
   #vfx { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
   /* экранная вспышка на крупный вин (тир) */
-  #screenFlash { position: fixed; inset: 0; pointer-events: none; z-index: 58; opacity: 0; background: radial-gradient(circle at 50% 45%, #fff, #ffdf7a 45%, transparent 75%); }
-  #screenFlash.punch { animation: scrFlash .45s ease-out; }
-  @keyframes scrFlash { 0% { opacity: .55; } 100% { opacity: 0; } }
+  #screenFlash { position: fixed; inset: 0; pointer-events: none; z-index: 58; opacity: 0; background: radial-gradient(circle at 50% 42%, #fff7e0, #ffd27a 40%, transparent 70%); }
+  /* v21.2: forwards → доходит ДО 0 (раньше возвращалось к инлайн-opacity = висел «туман»); тусклее + плавный ~3с спад */
+  #screenFlash.punch { animation: scrFlash var(--fd, 2800ms) ease-out forwards; }
+  @keyframes scrFlash { 0% { opacity: var(--pk, .18); } 100% { opacity: 0; } }
   /* комбо-баннер: эскалирует с --hot (цвет/размер/жар) */
   #comboBox {
     position: fixed; left: 50%; top: 23%; transform: translate(-50%,-50%) scale(.5);
@@ -1126,7 +1127,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v21.1 · 2026-06-17 · low-jump";
+const BUILD = "Hoshikuzu v21.2 · 2026-06-17 · flash-fix";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1821,7 +1822,11 @@ function comboTier(n) { return n >= 10 ? 4 : n >= 6 ? 3 : n >= 3 ? 2 : n >= 2 ? 
 /* ── экранный удар: вспышка + тряска ── */
 const screenFlash = document.getElementById("screenFlash");
 function screenPunch(tier) {
-  if (!GFX_LOW) { screenFlash.classList.remove("punch"); void screenFlash.offsetWidth; screenFlash.style.opacity = Math.min(.5, .16 + tier * .1); screenFlash.classList.add("punch"); }
+  if (!GFX_LOW) {
+    // тусклее (пик ≤ .2 вместо .55) + спад до 0 через forwards в CSS; БЕЗ инлайн-opacity (он и оставлял «туман»)
+    screenFlash.style.setProperty("--pk", Math.min(.2, .07 + tier * .035));
+    screenFlash.classList.remove("punch"); void screenFlash.offsetWidth; screenFlash.classList.add("punch");
+  }
   const app = document.getElementById("app");
   app.classList.remove("shake"); void app.offsetWidth; app.classList.add("shake");
 }
