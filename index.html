@@ -181,6 +181,20 @@
     96%  { transform: translateY(-11px)  scaleX(1)    scaleY(1); }                         /* отскок 2 */
     100% { transform: translateY(0)      scaleX(1)    scaleY(1);  filter: blur(0); }
   }
+  /* LOW-вариант (v21.1): тот же прыжок+скейл, но БЕЗ блюра (блюр — единственное дорогое;
+     translateY/scale — дешёвый композит GPU). Прыжок есть и на слабых устройствах */
+  .lift.throwlite { animation: diceThrowLite var(--td, 1500ms) cubic-bezier(.35,.45,.65,.55); }
+  @keyframes diceThrowLite {
+    0%   { transform: translateY(2px)    scaleX(1.1)  scaleY(.85); }
+    5%   { transform: translateY(-90px)  scaleX(1.28) scaleY(1.28); }
+    38%  { transform: translateY(-104px) scaleX(1.3)  scaleY(1.3); }
+    68%  { transform: translateY(-28px)  scaleX(1.12) scaleY(1.12); }
+    75%  { transform: translateY(0)      scaleX(1.2)  scaleY(.68); }
+    84%  { transform: translateY(-30px)  scaleX(.93)  scaleY(1.1); }
+    91%  { transform: translateY(0)      scaleX(1.1)  scaleY(.9); }
+    96%  { transform: translateY(-11px)  scaleX(1)    scaleY(1); }
+    100% { transform: translateY(0)      scaleX(1)    scaleY(1); }
+  }
   .scene { position: absolute; inset: 0; perspective: 380px; perspective-origin: 50% 50%; z-index: 1; } /* центр (v20.6) */
   .cube { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; transform-origin: 50% 50%; } /* спин строго от ЦЕНТРА */
   .face {
@@ -1112,7 +1126,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v21 · 2026-06-17 · canvas-juice";
+const BUILD = "Hoshikuzu v21.1 · 2026-06-17 · low-jump";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1584,8 +1598,9 @@ function spinReel(r, target, idx, durMul, heat, zone) {
     // Авто/турбо масштабирует durMul, но кап 2с. Лёгкий рандом — лишь чтобы кости не были идеально синхронны
     const dur = Math.min((1500 + Math.random() * 120) * durMul, 2000);
     const spinDur = dur * (GFX_LOW ? 0.62 : 0.72);
-    // КАСКАД слева-направо: каждая следующая кость стартует и приземляется чуть позже (v20.6)
-    const delay = GFX_LOW ? 0 : idx * 130;
+    // КАСКАД слева-направо: каждая следующая кость стартует и приземляется чуть позже (v20.6).
+    // Каскад дешёвый (setTimeout) → работает и на LOW (v21.1)
+    const delay = idx * 130;
     // ВИЗУАЛЬНАЯ подмена грани на результат — когда кость уже в воздухе и крутится/размыта (v20.7),
     // чтобы игрок не видел, как грань «перещёлкивается» в самом начале броска
     setTimeout(() => { r.faces[0].querySelector(".sym").textContent = target.emoji; }, delay + 160);
@@ -1598,13 +1613,12 @@ function spinReel(r, target, idx, durMul, heat, zone) {
       r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.35,.45,.65,.55)`;
       void r.cube.offsetWidth;
       r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
-      // прыжок/падение/сквош/блюр (.lift) + тень растёт пропорционально кубу (.shadow). GFX_LOW: без этого
-      if (!GFX_LOW) {
-        r.lift.style.setProperty("--td", dur + "ms");
-        r.lift.classList.remove("throw"); void r.lift.offsetWidth; r.lift.classList.add("throw");
-        r.shadow.style.setProperty("--td", dur + "ms");
-        r.shadow.classList.remove("throw"); void r.shadow.offsetWidth; r.shadow.classList.add("throw");
-      }
+      // ПРЫЖОК+скейл+тень — на ВСЕХ устройствах (дёшево, композит). На LOW — без блюра (throwlite, v21.1)
+      r.lift.style.setProperty("--td", dur + "ms");
+      r.lift.classList.remove("throw", "throwlite"); void r.lift.offsetWidth;
+      r.lift.classList.add(GFX_LOW ? "throwlite" : "throw");
+      r.shadow.style.setProperty("--td", dur + "ms");
+      r.shadow.classList.remove("throw"); void r.shadow.offsetWidth; r.shadow.classList.add("throw");
       if (heat) r.el.classList.add("heat");
       // ИМПАКТ приземления (~75% прыжка): звук кости о доску + вибро + кольцо пыли + вспышка
       setTimeout(() => {
@@ -1615,7 +1629,7 @@ function spinReel(r, target, idx, durMul, heat, zone) {
     setTimeout(() => {
       r.el.classList.remove("heat");
       r.shadow.classList.remove("throw");
-      r.lift.classList.remove("throw");
+      r.lift.classList.remove("throw", "throwlite");
       if (r.landed && r.landed.wild) r.el.classList.add("wildfx"); // ⚡ выпал на кости → электрорамка «жарит» (v21)
       resolve();
     }, delay + dur);
