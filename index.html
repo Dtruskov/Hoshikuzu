@@ -1073,7 +1073,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v14 · 2026-06-17 · dice-sound";
+const BUILD = "Hoshikuzu v15 · 2026-06-17 · dice-whoosh2";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1303,21 +1303,23 @@ function noiseBuffer() {
   }
   return _noiseBuf;
 }
-// приятный whoosh вращения костей в воздухе: полосовой шум, мягкий свелл + свип фильтра вверх-вниз
+// whoosh вращения костей — МЯГКИЙ «воздушный» вариант (v20.10): lowpass-шум без резонанса
+// (не bandpass-помехи), highpass убирает гул, тихо + колоколообразный свелл. Один на бросок
 function sWhoosh(durMs) {
   try {
-    const c = ac(), t = c.currentTime, dur = Math.max(.3, durMs / 1000);
+    const c = ac(), t = c.currentTime, dur = Math.max(.35, durMs / 1000);
     const src = c.createBufferSource(); src.buffer = noiseBuffer(); src.loop = true;
-    const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = .8;
-    bp.frequency.setValueAtTime(380, t);
-    bp.frequency.linearRampToValueAtTime(1050, t + dur * .45); // разгон
-    bp.frequency.linearRampToValueAtTime(460, t + dur);        // замедление к приземлению
+    const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = .25;
+    lp.frequency.setValueAtTime(480, t);
+    lp.frequency.linearRampToValueAtTime(1700, t + dur * .4); // мягкий подъём «воздуха»
+    lp.frequency.linearRampToValueAtTime(650, t + dur);       // спад к приземлению
+    const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 180; // срез низкого гула
     const g = c.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(.045, t + .08);             // мягкий свелл-ин (приятно)
-    g.gain.setValueAtTime(.045, t + dur * .7);
-    g.gain.linearRampToValueAtTime(0, t + dur);                // фейд-аут
-    src.connect(bp).connect(g).connect(c.destination);
+    g.gain.linearRampToValueAtTime(.03, t + dur * .25);       // мягкий свелл-ин
+    g.gain.linearRampToValueAtTime(.03, t + dur * .6);
+    g.gain.linearRampToValueAtTime(0, t + dur);               // фейд-аут
+    src.connect(hp).connect(lp).connect(g).connect(c.destination);
     src.start(t); src.stop(t + dur + .05);
   } catch (e) {}
 }
@@ -1565,7 +1567,6 @@ function spinReel(r, target, idx, durMul, heat, zone) {
         r.shadow.classList.remove("throw"); void r.shadow.offsetWidth; r.shadow.classList.add("throw");
       }
       if (heat) r.el.classList.add("heat");
-      sWhoosh(spinDur); // приятный whoosh вращения кости в воздухе (вместо рулеточного тика)
       // ИМПАКТ приземления (~75% прыжка): звук кости о доску + вибро + кольцо пыли + вспышка
       setTimeout(() => {
         sDiceLand(); vibrate(heat ? 28 : 20);
@@ -1755,6 +1756,7 @@ async function doSpin(durMul) {
   // кости рандомно меняются местами в полёте (порядок не важен — вин по «трём в ряд»): перестановка зон
   const zonePerm = [0, 1, 2];
   for (let i = 2; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = zonePerm[i]; zonePerm[i] = zonePerm[j]; zonePerm[j] = t; }
+  sWhoosh(Math.min(1500 * durMul, 2000) * 0.72); // ОДИН мягкий whoosh на бросок (≈ время полёта), не 3 слоя
   await Promise.all(reels.map((r, i) =>
     spinReel(r, targets[i], i, durMul, i === 2 && !!heatSym, zonePerm[i])));
   let won = false;
