@@ -133,14 +133,15 @@
      на удар — короткая вспышка светлее (~5%, пара кадров). Слой ПОД костями (z-index 0 < .die 2) */
   #tableFx { position: absolute; inset: 0; border-radius: 16px; z-index: 0; pointer-events: none; opacity: 0; background: #000; }
   #tableFx.flash { animation: tableFlash var(--tfd, 880ms) ease-out; }
-  @keyframes tableFlash {
-    0%  { background:#000; opacity: 0; }
-    20% { background:#000; opacity: .2; }    /* кости взлетели/высоко → затемнение ~20% (v20.4: сильнее) */
-    70% { background:#000; opacity: .2; }
-    76% { background:#fff; opacity: .06; }   /* удар → вспышка светлее на пару кадров */
-    84% { background:#fff; opacity: 0; }
-    100%{ opacity: 0; }
+  @keyframes tableFlash { /* только затемнение пока кости высоко; вспышка-удар теперь ПО кости (.bflash) */
+    0% { opacity: 0; } 20% { opacity: .2; } 70% { opacity: .2; } 100% { opacity: 0; }
   }
+  /* вспышка стола на приземление КАЖДОЙ кости (v20.8): 3 каскадом, своя на каждый куб */
+  .bflash {
+    position: absolute; inset: 0; border-radius: 16px; z-index: 0; pointer-events: none;
+    background: #fff; animation: bflashk .2s ease-out forwards;
+  }
+  @keyframes bflashk { 0% { opacity: .12; } 100% { opacity: 0; } }
   /* ── 3D кость (v20.2 «кинули на стол»): .die (позиция в зоне) > .shadow (тень) + .lift
      (прыжок/падение/сквош/моушн-блюр) > .scene (перспектива) > .cube (спин В ВОЗДУХЕ, центр-пивот)
      > 6×.face. Грани без скругления. При приземлении грани НЕ крутятся — только верт. отскок ── */
@@ -152,7 +153,7 @@
     pointer-events: none;
   }
   /* тень растёт ПРОПОРЦИОНАЛЬНО кубу (v20.7): крупнее/бледнее пока куб высоко → шлепок на удар */
-  .shadow.throw { animation: shadowThrow var(--td, 1500ms) cubic-bezier(.77,0,.175,1); }
+  .shadow.throw { animation: shadowThrow var(--td, 1500ms) cubic-bezier(.35,.45,.65,.55); }
   @keyframes shadowThrow {
     0%   { transform: translate(-50%,-50%) scale(1);    opacity: .42; }
     5%   { transform: translate(-50%,-50%) scale(1.28); opacity: .3; }
@@ -164,9 +165,11 @@
   }
   /* прыжок → пик(спин+блюр) → падение → УДАР(сквош) → подскок → покой. Магнитуду тюнить ЗДЕСЬ */
   .lift { position: absolute; inset: 0; will-change: transform, filter; transform-origin: 50% 50%; } /* скейл/сквош строго от ЦЕНТРА (v20.6) */
-  /* EaseInOutQuart на ВСЮ анимацию куба (и скейл, и поворот — одной кривой). Рост ×1.3 в пике,
-     быстрый взлёт (~5%), блюр в пике ~6px (÷3 от прежнего), приземление на 75%, отскоки 75-100% */
-  .lift.throw { animation: diceThrow var(--td, 1500ms) cubic-bezier(.77,0,.175,1); }
+  /* v20.8: РЕЗКАЯ кривая `cubic-bezier(.35,.45,.65,.55)` на ВСЮ анимацию куба (взлёт/скейл/
+     поворот/отскоки — одной кривой): резкое начало и резкий конец вместо плавного (была
+     EaseInOutQuart — мягкие концы, приземление «таяло»). Рост ×1.3, взлёт ~5%, блюр ~3px,
+     приземление на 75%, отскоки 75-100% */
+  .lift.throw { animation: diceThrow var(--td, 1500ms) cubic-bezier(.35,.45,.65,.55); }
   @keyframes diceThrow {
     0%   { transform: translateY(2px)    scaleX(1.1)  scaleY(.85); filter: blur(0); }    /* рывок вверх */
     5%   { transform: translateY(-90px)  scaleX(1.28) scaleY(1.28); filter: blur(2.5px); } /* быстрый взлёт: крупнее ×1.3 + лёгкий блюр */
@@ -183,8 +186,8 @@
   .face {
     position: absolute; width: 60px; height: 60px;
     display: flex; align-items: center; justify-content: center; backface-visibility: hidden;
-    background: linear-gradient(150deg, #ffffff 0%, #f2ecfb 48%, #ddd2f0 100%); /* ближе к белому (v20.7) */
-    box-shadow: inset 0 0 0 1.5px rgba(120,100,170,.55), inset 0 0 16px rgba(70,55,110,.22);
+    background: linear-gradient(145deg, #fffdf5 0%, #f2ebd6 52%, #ddd2b6 100%); /* классическая слоновая кость (v20.8) */
+    box-shadow: inset 0 0 0 1.5px rgba(150,128,80,.5), inset 0 0 16px rgba(90,72,35,.2);
   }
   .face .sym { font-size: 34px; line-height: 1; pointer-events: none; }
   .face.f-front  { transform: rotateY(  0deg) translateZ(30px); }
@@ -1070,7 +1073,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v12 · 2026-06-17 · dice-throw6";
+const BUILD = "Hoshikuzu v13 · 2026-06-17 · dice-throw7";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1458,6 +1461,13 @@ function landRing(el) {
   document.getElementById("fxUnder").appendChild(ring);
   setTimeout(() => ring.remove(), 440);
 }
+// короткая вспышка стола на приземление кости (v20.8): своя на каждый куб → 3 каскадом
+function boardFlash() {
+  const f = document.createElement("div");
+  f.className = "bflash";
+  document.getElementById("board").appendChild(f);
+  setTimeout(() => f.remove(), 210);
+}
 // бросок кости (v20.2 «кинули на стол»): результат на ПЕРЕДНЕЙ грани (вид сверху → «вверх»).
 // Кость ПОДЛЕТАЕТ и быстро крутится В ВОЗДУХЕ (центр-пивот + моушн-блюр на .lift), затем
 // ПАДАЕТ с импактом и подскакивает ВЕРТИКАЛЬНО (без перекатов, грани не переворачиваются —
@@ -1472,8 +1482,9 @@ function spinReel(r, target, idx, durMul, heat) {
     // позицию смещаем НАРУЖУ по своей зоне (лево только влево, право только вправо) → разлёт без пересечений
     const jx = idx === 0 ? -(Math.random() * 30) : idx === 2 ? (Math.random() * 30) : (Math.random() * 30 - 15);
     const jy = Math.random() * 34 - 17;
-    // total ≈1.5с (тюнить): ~75% воздух + ~25% отскоки. Авто/турбо масштабирует durMul, но кап 2с
-    const dur = Math.min((1500 + (heat ? 250 : 0) + Math.random() * 120) * durMul, 2000);
+    // total ≈1.5с (тюнить): ~75% воздух + ~25% отскоки. Время ВСЕГДА одинаковое (прогрев не замедляет, v20.8).
+    // Авто/турбо масштабирует durMul, но кап 2с. Лёгкий рандом — лишь чтобы кости не были идеально синхронны
+    const dur = Math.min((1500 + Math.random() * 120) * durMul, 2000);
     const spinDur = dur * (GFX_LOW ? 0.62 : 0.72);
     // КАСКАД слева-направо: каждая следующая кость стартует и приземляется чуть позже (v20.6)
     const delay = GFX_LOW ? 0 : idx * 130;
@@ -1483,10 +1494,10 @@ function spinReel(r, target, idx, durMul, heat) {
     setTimeout(() => {
       // ПОЗИЦИЯ доезжает в «точку падения» ЗА ВРЕМЯ ВОЗДУХА (~74%), НЕ за весь ролл — иначе кость
       // «ползёт по столу» после остановки. Колоколообразно (ease-in-out: медленно-быстро-медленно)
-      r.el.style.transition = `transform ${dur * 0.74}ms cubic-bezier(.45,.05,.55,.95)`;
+      r.el.style.transition = `transform ${dur * 0.74}ms cubic-bezier(.35,.45,.65,.55)`;
       r.el.style.transform = `translate(${jx}px, ${jy}px)`;
       // спин куба завершается ДО касания (~72%) → при отскоке грани не крутятся; EaseInOutQuart (как скейл)
-      r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.77,0,.175,1)`;
+      r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.35,.45,.65,.55)`;
       void r.cube.offsetWidth;
       r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
       // прыжок/падение/сквош/блюр (.lift) + тень растёт пропорционально кубу (.shadow). GFX_LOW: без этого
@@ -1501,7 +1512,7 @@ function spinReel(r, target, idx, durMul, heat) {
       // ИМПАКТ приземления (~75% прыжка): звук + вибро + кольцо пыли (шлепок тени — в shadowThrow)
       setTimeout(() => {
         sThud(); vibrate(heat ? 28 : 20);
-        if (!GFX_LOW) landRing(r.el);
+        if (!GFX_LOW) { landRing(r.el); boardFlash(); } // своя вспышка стола на КАЖДУЮ кость → 3 каскадом
       }, dur * 0.75);
     }, delay);
     setTimeout(() => {
@@ -1681,10 +1692,11 @@ async function doSpin(durMul) {
   }
   // прогрев: первые два СОВМЕСТИМЫ (равны или среди них wild) → томим третий.
   // heatSym = подразумеваемый ресурс (определяет тир длительности)
+  // прогрев (первые две совместимы): ТОЛЬКО жёлтая подсветка 3-й кости, БЕЗ замедления —
+  // время броска всегда одинаковое (v20.8, запрос автора). heatSym нужен лишь для подсветки + nearMiss
   const heatSym = compatPair(targets[0], targets[1]);
-  const heatMul = heatSym ? (heatSym.id === "harda" ? 1.45 : 1.9) : 1;
   await Promise.all(reels.map((r, i) =>
-    spinReel(r, targets[i], i, i === 2 ? durMul * heatMul : durMul, i === 2 && !!heatSym)));
+    spinReel(r, targets[i], i, durMul, i === 2 && !!heatSym)));
   let won = false;
   try {
     won = evaluate();
