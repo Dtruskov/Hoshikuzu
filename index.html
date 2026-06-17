@@ -1073,7 +1073,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v13 · 2026-06-17 · dice-throw7";
+const BUILD = "Hoshikuzu v14 · 2026-06-17 · dice-sound";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1292,6 +1292,64 @@ const sThud = () => beep(140, .09, "sine", .12);
 const sMiss = () => { beep(240, .12, "sine", .05); beep(170, .2, "sine", .05, .12); }; // нисходящий «вздох» промаха
 const sCoin = i => beep(520 * 1.25 ** i, .12, "triangle", .07, i * .07);
 function sFanfare() { [0, 4, 7, 12, 16, 19, 24].forEach((n, i) => beep(330 * 2 ** (n / 12), .22, "triangle", .08, i * .09)); }
+// ── звуки КОСТЕЙ (v20.9): старт-бросок · whoosh вращения · приземление на доску ──
+let _noiseBuf = null;
+function noiseBuffer() {
+  const c = ac();
+  if (!_noiseBuf || _noiseBuf.sampleRate !== c.sampleRate) {
+    _noiseBuf = c.createBuffer(1, c.sampleRate, c.sampleRate);
+    const d = _noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return _noiseBuf;
+}
+// приятный whoosh вращения костей в воздухе: полосовой шум, мягкий свелл + свип фильтра вверх-вниз
+function sWhoosh(durMs) {
+  try {
+    const c = ac(), t = c.currentTime, dur = Math.max(.3, durMs / 1000);
+    const src = c.createBufferSource(); src.buffer = noiseBuffer(); src.loop = true;
+    const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = .8;
+    bp.frequency.setValueAtTime(380, t);
+    bp.frequency.linearRampToValueAtTime(1050, t + dur * .45); // разгон
+    bp.frequency.linearRampToValueAtTime(460, t + dur);        // замедление к приземлению
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(.045, t + .08);             // мягкий свелл-ин (приятно)
+    g.gain.setValueAtTime(.045, t + dur * .7);
+    g.gain.linearRampToValueAtTime(0, t + dur);                // фейд-аут
+    src.connect(bp).connect(g).connect(c.destination);
+    src.start(t); src.stop(t + dur + .05);
+  } catch (e) {}
+}
+// старт броска — короткий взлётный «фвип» (фильтрованный шум, быстрый удар-спад)
+function sDiceThrow() {
+  try {
+    const c = ac(), t = c.currentTime;
+    const src = c.createBufferSource(); src.buffer = noiseBuffer();
+    const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 550;
+    const g = c.createGain();
+    g.gain.setValueAtTime(.001, t);
+    g.gain.exponentialRampToValueAtTime(.08, t + .04);
+    g.gain.exponentialRampToValueAtTime(.001, t + .2);
+    src.connect(hp).connect(g).connect(c.destination);
+    src.start(t); src.stop(t + .22);
+  } catch (e) {}
+}
+// приземление кости на доску: деревянный «тук» + короткое клацанье
+function sDiceLand() {
+  try {
+    const c = ac(), t = c.currentTime;
+    beep(170 + Math.random() * 50, .08, "sine", .11);  // низкий деревянный тук
+    beep(95, .11, "sine", .09);
+    const src = c.createBufferSource(); src.buffer = noiseBuffer();
+    const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 2200 + Math.random() * 500; bp.Q.value = 1.2;
+    const g = c.createGain();
+    g.gain.setValueAtTime(.085, t);
+    g.gain.exponentialRampToValueAtTime(.001, t + .06);
+    src.connect(bp).connect(g).connect(c.destination);
+    src.start(t); src.stop(t + .07);
+  } catch (e) {}
+}
 const tg = window.Telegram && window.Telegram.WebApp;
 const vibrate = arg => {
   try {
@@ -1438,11 +1496,6 @@ function spinTarget(cur, turns, dir) {
                  : cur - mod - turns * 360;
 }
 const rdir = () => (Math.random() < 0.5 ? 1 : -1);
-// тики во время полёта кости (редеют к концу — как стрекот тормозящей кости)
-function rollTicks(dur) {
-  const K = Math.max(6, Math.round(dur / 95));
-  for (let k = 1; k <= K; k++) setTimeout(sTick, dur * (1 - (1 - k / K) ** 2));
-}
 // «удар по столу» при нажатии — от него кости взлетают (один общий бум на бросок) +
 // свет стола: затемнение пока кости высоко → вспышка светлее на удар (v20.3)
 function boardBump() {
@@ -1472,15 +1525,19 @@ function boardFlash() {
 // Кость ПОДЛЕТАЕТ и быстро крутится В ВОЗДУХЕ (центр-пивот + моушн-блюр на .lift), затем
 // ПАДАЕТ с импактом и подскакивает ВЕРТИКАЛЬНО (без перекатов, грани не переворачиваются —
 // спин куба завершается до касания). Сигнатура сохранена → doSpin/evaluate не меняются.
-function spinReel(r, target, idx, durMul, heat) {
+function spinReel(r, target, idx, durMul, heat, zone) {
+  if (zone == null) zone = idx;
   return new Promise(resolve => {
     r.landed = target; // ЛОГИЧЕСКИЙ результат сразу; ВИЗУАЛЬНАЯ подмена грани — позже, в полёте (см. ниже)
     // быстрый многоосевой спин в воздухе: 4–6 оборотов (рандом) в РАЗНЫЕ стороны, кончается передней гранью вверх
     r.rx = spinTarget(r.rx, (GFX_LOW ? 2 : 4) + ((Math.random() * 3) | 0), rdir()); // 4..6 оборотов, рандомное направление
     r.ry = spinTarget(r.ry, (GFX_LOW ? 1 : 2) + ((Math.random() * 2) | 0), rdir()); // многоосевой хаос
     r.rz = spinTarget(r.rz, 2, rdir()) + (Math.random() * 24 - 12); // спин + финальный yaw ±12°
-    // позицию смещаем НАРУЖУ по своей зоне (лево только влево, право только вправо) → разлёт без пересечений
-    const jx = idx === 0 ? -(Math.random() * 30) : idx === 2 ? (Math.random() * 30) : (Math.random() * 30 - 15);
+    // в полёте кость переезжает в НАЗНАЧЕННУЮ зону (рандомная перестановка) → кости меняются местами;
+    // сдвиг = разница слотов своей и целевой зоны + джиттер НАРУЖУ по зоне (без пересечений в покое)
+    const slotDX = reels[zone].el.offsetLeft - reels[idx].el.offsetLeft;
+    const jb = zone === 0 ? -(Math.random() * 26) : zone === 2 ? (Math.random() * 26) : (Math.random() * 28 - 14);
+    const jx = slotDX + jb;
     const jy = Math.random() * 34 - 17;
     // total ≈1.5с (тюнить): ~75% воздух + ~25% отскоки. Время ВСЕГДА одинаковое (прогрев не замедляет, v20.8).
     // Авто/турбо масштабирует durMul, но кап 2с. Лёгкий рандом — лишь чтобы кости не были идеально синхронны
@@ -1508,10 +1565,10 @@ function spinReel(r, target, idx, durMul, heat) {
         r.shadow.classList.remove("throw"); void r.shadow.offsetWidth; r.shadow.classList.add("throw");
       }
       if (heat) r.el.classList.add("heat");
-      rollTicks(spinDur);
-      // ИМПАКТ приземления (~75% прыжка): звук + вибро + кольцо пыли (шлепок тени — в shadowThrow)
+      sWhoosh(spinDur); // приятный whoosh вращения кости в воздухе (вместо рулеточного тика)
+      // ИМПАКТ приземления (~75% прыжка): звук кости о доску + вибро + кольцо пыли + вспышка
       setTimeout(() => {
-        sThud(); vibrate(heat ? 28 : 20);
+        sDiceLand(); vibrate(heat ? 28 : 20);
         if (!GFX_LOW) { landRing(r.el); boardFlash(); } // своя вспышка стола на КАЖДУЮ кость → 3 каскадом
       }, dur * 0.75);
     }, delay);
@@ -1695,8 +1752,11 @@ async function doSpin(durMul) {
   // прогрев (первые две совместимы): ТОЛЬКО жёлтая подсветка 3-й кости, БЕЗ замедления —
   // время броска всегда одинаковое (v20.8, запрос автора). heatSym нужен лишь для подсветки + nearMiss
   const heatSym = compatPair(targets[0], targets[1]);
+  // кости рандомно меняются местами в полёте (порядок не важен — вин по «трём в ряд»): перестановка зон
+  const zonePerm = [0, 1, 2];
+  for (let i = 2; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = zonePerm[i]; zonePerm[i] = zonePerm[j]; zonePerm[j] = t; }
   await Promise.all(reels.map((r, i) =>
-    spinReel(r, targets[i], i, durMul, i === 2 && !!heatSym)));
+    spinReel(r, targets[i], i, durMul, i === 2 && !!heatSym, zonePerm[i])));
   let won = false;
   try {
     won = evaluate();
@@ -1917,7 +1977,7 @@ const throwBtn = document.getElementById("throwBtn");
 throwBtn.addEventListener("click", () => {
   ac();          // разблокировать звук жестом
   if (!spinning && S.spins >= 1 && !bonusLanded && !(TUT.active && !TUT.force)) {
-    boardBump(); sThud(); vibrate(38); // «удар по столу» — от него кости взлетают (только ручной бросок, не авто)
+    boardBump(); sThud(); sDiceThrow(); vibrate(38); // удар по столу (тук) + звук броска костей — кости взлетают (только ручной бросок)
   }
   doSpin(1);
 });
