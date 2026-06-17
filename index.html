@@ -157,25 +157,23 @@
     100% { transform: translate(-50%,-50%) scale(1); opacity: .42; }
   }
   /* прыжок → пик(спин+блюр) → падение → УДАР(сквош) → подскок → покой. Магнитуду тюнить ЗДЕСЬ */
-  .lift { position: absolute; inset: 0; will-change: transform, filter; }
-  /* v20.4: рывок ВВЕРХ за ~5 кадров + рост до 1.3 (приближение к камере) + сильный блюр; апекс;
-     падение с ускорением (гравитация); УДАР с сильным сквошем; увеличенные отскоки.
-     Кривые EaseOutQuart (вверх/удар) и EaseInQuart (падение/вниз) заданы ПО СЕГМЕНТАМ */
-  /* EaseInOutQuart на ВСЮ анимацию куба (запрос автора): и скейл, и поворот одной кривой */
+  .lift { position: absolute; inset: 0; will-change: transform, filter; transform-origin: 50% 50%; } /* скейл/сквош строго от ЦЕНТРА (v20.6) */
+  /* EaseInOutQuart на ВСЮ анимацию куба (и скейл, и поворот — одной кривой). Рост ×1.3 в пике,
+     быстрый взлёт (~5%), блюр в пике ~6px (÷3 от прежнего), приземление на 75%, отскоки 75-100% */
   .lift.throw { animation: diceThrow var(--td, 1500ms) cubic-bezier(.77,0,.175,1); }
   @keyframes diceThrow {
-    0%   { transform: translateY(2px)    scaleX(1.1)  scaleY(.85); filter: blur(0); }     /* рывок вверх */
-    8%   { transform: translateY(-96px)  scaleX(2.4)  scaleY(2.4); filter: blur(16px); }  /* взлетел: КРУПНО ×2.5 + сильный блюр */
-    38%  { transform: translateY(-114px) scaleX(2.5)  scaleY(2.5); filter: blur(19px); }  /* апекс: макс. близко к камере + макс. блюр */
-    68%  { transform: translateY(-30px)  scaleX(1.3)  scaleY(1.3); filter: blur(6px); }   /* падает, уменьшается к норме */
-    75%  { transform: translateY(0)      scaleX(1.22) scaleY(.66); filter: blur(0); }     /* УДАР о стол: сквош */
-    84%  { transform: translateY(-32px)  scaleX(.92)  scaleY(1.12); }                      /* отскок 1 */
-    91%  { transform: translateY(0)      scaleX(1.12) scaleY(.9); }                        /* касание */
-    96%  { transform: translateY(-12px)  scaleX(1)    scaleY(1); }                         /* отскок 2 */
+    0%   { transform: translateY(2px)    scaleX(1.1)  scaleY(.85); filter: blur(0); }    /* рывок вверх */
+    5%   { transform: translateY(-90px)  scaleX(1.28) scaleY(1.28); filter: blur(5px); } /* быстрый взлёт: крупнее ×1.3 + блюр */
+    38%  { transform: translateY(-104px) scaleX(1.3)  scaleY(1.3);  filter: blur(6px); } /* апекс */
+    68%  { transform: translateY(-28px)  scaleX(1.12) scaleY(1.12); filter: blur(2px); } /* падает, к норме */
+    75%  { transform: translateY(0)      scaleX(1.2)  scaleY(.68);  filter: blur(0); }    /* УДАР о стол: сквош */
+    84%  { transform: translateY(-30px)  scaleX(.93)  scaleY(1.1); }                       /* отскок 1 */
+    91%  { transform: translateY(0)      scaleX(1.1)  scaleY(.9); }                        /* касание */
+    96%  { transform: translateY(-11px)  scaleX(1)    scaleY(1); }                         /* отскок 2 */
     100% { transform: translateY(0)      scaleX(1)    scaleY(1);  filter: blur(0); }
   }
-  .scene { position: absolute; inset: 0; perspective: 380px; perspective-origin: 50% 45%; z-index: 1; }
-  .cube { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; } /* пивот центр — кость в воздухе */
+  .scene { position: absolute; inset: 0; perspective: 380px; perspective-origin: 50% 50%; z-index: 1; } /* центр (v20.6) */
+  .cube { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; transform-origin: 50% 50%; } /* спин строго от ЦЕНТРА */
   .face {
     position: absolute; width: 60px; height: 60px;
     display: flex; align-items: center; justify-content: center; backface-visibility: hidden;
@@ -1066,7 +1064,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v10 · 2026-06-17 · dice-throw4";
+const BUILD = "Hoshikuzu v11 · 2026-06-17 · dice-throw5";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1469,34 +1467,38 @@ function spinReel(r, target, idx, durMul, heat) {
     const jx = Math.random() * 60 - 30, jy = Math.random() * 34 - 17; // сильнее меняем позицию между роллами
     // total ≈1.5с (тюнить): ~75% воздух + ~25% отскоки. Авто/турбо масштабирует durMul, но кап 2с
     const dur = Math.min((1500 + (heat ? 250 : 0) + Math.random() * 120) * durMul, 2000);
-    // ПОЗИЦИЯ доезжает в «точку падения» ЗА ВРЕМЯ ВОЗДУХА (~74%), НЕ за весь ролл — иначе кость
-    // «ползёт по столу» после остановки. Колоколообразно (ease-in-out: медленно-быстро-медленно)
-    r.el.style.transition = `transform ${dur * 0.74}ms cubic-bezier(.45,.05,.55,.95)`;
-    r.el.style.transform = `translate(${jx}px, ${jy}px)`;
-    // спин куба завершается ДО касания (~72%) → при отскоке грани не крутятся. EaseOutQuart: рывок→затухание
     const spinDur = dur * (GFX_LOW ? 0.62 : 0.72);
-    r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.77,0,.175,1)`; // EaseInOutQuart — та же кривая, что у скейла
-    void r.cube.offsetWidth;
-    r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
-    // прыжок/падение/сквош/блюр — keyframe на .lift (GFX_LOW: без прыжка/блюра)
-    if (!GFX_LOW) {
-      r.lift.style.setProperty("--td", dur + "ms");
-      r.lift.classList.remove("throw"); void r.lift.offsetWidth; r.lift.classList.add("throw");
-    }
-    if (heat) r.el.classList.add("heat");
-    rollTicks(spinDur);
-    // ИМПАКТ приземления (~75% прыжка): VFX + звук + вибро + «шлепок» тени
+    // КАСКАД слева-направо: каждая следующая кость стартует и приземляется чуть позже (v20.6)
+    const delay = GFX_LOW ? 0 : idx * 130;
     setTimeout(() => {
-      sThud(); vibrate(heat ? 28 : 20);
-      r.shadow.classList.remove("land"); void r.shadow.offsetWidth; r.shadow.classList.add("land");
-      if (!GFX_LOW) landRing(r.el);
-    }, dur * 0.75);
+      // ПОЗИЦИЯ доезжает в «точку падения» ЗА ВРЕМЯ ВОЗДУХА (~74%), НЕ за весь ролл — иначе кость
+      // «ползёт по столу» после остановки. Колоколообразно (ease-in-out: медленно-быстро-медленно)
+      r.el.style.transition = `transform ${dur * 0.74}ms cubic-bezier(.45,.05,.55,.95)`;
+      r.el.style.transform = `translate(${jx}px, ${jy}px)`;
+      // спин куба завершается ДО касания (~72%) → при отскоке грани не крутятся; EaseInOutQuart (как скейл)
+      r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.77,0,.175,1)`;
+      void r.cube.offsetWidth;
+      r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
+      // прыжок/падение/сквош/блюр — keyframe на .lift (GFX_LOW: без прыжка/блюра)
+      if (!GFX_LOW) {
+        r.lift.style.setProperty("--td", dur + "ms");
+        r.lift.classList.remove("throw"); void r.lift.offsetWidth; r.lift.classList.add("throw");
+      }
+      if (heat) r.el.classList.add("heat");
+      rollTicks(spinDur);
+      // ИМПАКТ приземления (~75% прыжка): VFX + звук + вибро + «шлепок» тени
+      setTimeout(() => {
+        sThud(); vibrate(heat ? 28 : 20);
+        r.shadow.classList.remove("land"); void r.shadow.offsetWidth; r.shadow.classList.add("land");
+        if (!GFX_LOW) landRing(r.el);
+      }, dur * 0.75);
+    }, delay);
     setTimeout(() => {
       r.el.classList.remove("heat");
       r.shadow.classList.remove("land");
       r.lift.classList.remove("throw");
       resolve();
-    }, dur);
+    }, delay + dur);
   });
 }
 
