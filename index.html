@@ -115,36 +115,51 @@
   /* ── middle: reels + lever ── */
   #mid { display: flex; gap: 10px; align-items: stretch; }
   #main { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  /* лоток-«стол» (v20.1): тёплое дерево/фетр; вид сверху; кости падают и замирают в 3 зонах */
+  /* лоток-«стол» (v20.2): тёплое дерево/фетр; вид сверху. overflow видимый — кости подлетают над столом */
   #board {
     background:
       radial-gradient(130% 100% at 50% 22%, #7a5530, #553722 62%, #3a2513),
       #3a2513;
-    border-radius: 18px; padding: 18px 10px; min-height: 172px; overflow: hidden;
+    border-radius: 18px; padding: 18px 10px; min-height: 164px;
     display: flex; justify-content: space-around; align-items: center;
     position: relative; transition: transform .1s;
     border: 2px solid rgba(120,82,42,.85);
     box-shadow: 0 10px 28px rgba(0,0,0,.55), inset 0 2px 14px rgba(0,0,0,.5),
       inset 0 0 70px rgba(0,0,0,.42);
   }
-  /* ── 3D кость: .die (позиция в зоне) > .shadow (контактная тень на столе) + .scene
-     (перспектива/падение) > .cube (кувырок вокруг ПЕРЕДНЕГО НИЖНЕГО РЕБРА касания) > 6×.face.
-     Грани БЕЗ скругления — углы сходятся, дыр на стыках нет (v20.1) ── */
+  #board.bump { animation: boardBump .22s ease-out; } /* «удар по столу» при нажатии (от него кости взлетают) */
+  @keyframes boardBump { 0%{transform:translateY(0)} 32%{transform:translateY(3px) scaleX(1.004)} 100%{transform:translateY(0)} }
+  /* ── 3D кость (v20.2 «кинули на стол»): .die (позиция в зоне) > .shadow (тень) + .lift
+     (прыжок/падение/сквош/моушн-блюр) > .scene (перспектива) > .cube (спин В ВОЗДУХЕ, центр-пивот)
+     > 6×.face. Грани без скругления. При приземлении грани НЕ крутятся — только верт. отскок ── */
   .die { width: 60px; height: 60px; flex: none; position: relative; will-change: transform; }
   .shadow {
-    position: absolute; left: 50%; top: 70%; width: 66px; height: 26px; z-index: 0;
-    transform: translate(-50%, -50%); border-radius: 50%; opacity: .4;
-    background: radial-gradient(ellipse at center, rgba(0,0,0,.55), rgba(0,0,0,0) 72%);
+    position: absolute; left: 50%; top: 74%; width: 58px; height: 20px; z-index: 0;
+    transform: translate(-50%, -50%); border-radius: 50%; opacity: .42;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,.62), rgba(0,0,0,0) 72%);
     pointer-events: none;
   }
-  .scene { position: absolute; inset: 0; perspective: 360px; perspective-origin: 50% 40%; z-index: 1; }
-  .scene.drop { animation: dieDrop var(--td, 900ms) cubic-bezier(.2,.7,.25,1); }
-  @keyframes dieDrop { /* падение «сверху на стол»: близко к камере (крупнее) → шлепок → покой */
-    0% { transform: scale(1.22); } 68% { transform: scale(.97); }
-    84% { transform: scale(1.03); } 100% { transform: scale(1); }
+  .shadow.land { animation: shadowImpact .32s ease-out; } /* «шлепок» тени при касании */
+  @keyframes shadowImpact {
+    0%   { transform: translate(-50%,-50%) scale(1.55); opacity: .62; }
+    100% { transform: translate(-50%,-50%) scale(1); opacity: .42; }
   }
-  .cube { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform;
-    transform-origin: 50% 100% -30px; } /* пивот = переднее нижнее ребро (точка касания стола) */
+  /* прыжок → пик(спин+блюр) → падение → УДАР(сквош) → подскок → покой. Магнитуду тюнить ЗДЕСЬ */
+  .lift { position: absolute; inset: 0; will-change: transform, filter; }
+  .lift.throw { animation: diceThrow var(--td, 900ms) cubic-bezier(.3,.08,.3,1); }
+  @keyframes diceThrow {
+    0%   { transform: translateY(3px) scaleY(.82) scaleX(1.12); filter: blur(0); }     /* присел от удара по столу */
+    12%  { transform: translateY(-18px) scaleY(1.08) scaleX(.94); filter: blur(2px); } /* оттолкнулся вверх */
+    40%  { transform: translateY(-66px) scaleY(1) scaleX(1); filter: blur(4px); }      /* пик: быстрый спин = блюр */
+    64%  { transform: translateY(-12px); filter: blur(2px); }                           /* падает */
+    75%  { transform: translateY(0) scaleY(.7) scaleX(1.2); filter: blur(0); }          /* УДАР о стол — сквош */
+    84%  { transform: translateY(-14px) scaleY(1.05) scaleX(.97); }                     /* подскок 1 */
+    91%  { transform: translateY(0) scaleY(.91) scaleX(1.06); }                          /* касание */
+    96%  { transform: translateY(-4px); }                                               /* подскок 2 (мелкий) */
+    100% { transform: translateY(0) scaleY(1) scaleX(1); filter: blur(0); }             /* покой */
+  }
+  .scene { position: absolute; inset: 0; perspective: 380px; perspective-origin: 50% 45%; z-index: 1; }
+  .cube { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; } /* пивот центр — кость в воздухе */
   .face {
     position: absolute; width: 60px; height: 60px;
     display: flex; align-items: center; justify-content: center; backface-visibility: hidden;
@@ -158,6 +173,14 @@
   .face.f-left   { transform: rotateY(-90deg) translateZ(30px); }
   .face.f-top    { transform: rotateX( 90deg) translateZ(30px); }
   .face.f-bottom { transform: rotateX(-90deg) translateZ(30px); }
+  /* кольцо пыли при приземлении */
+  .landring {
+    position: fixed; z-index: 8; pointer-events: none; border-radius: 50%;
+    width: 18px; height: 18px; margin: -9px 0 0 -9px;
+    border: 2px solid rgba(255,224,150,.6);
+    animation: landring .42s ease-out forwards;
+  }
+  @keyframes landring { 0%{transform:scale(.5); opacity:.75} 100%{transform:scale(3.6); opacity:0} }
   /* бит выигрыша: кость подпрыгивает-светится — на .scene (чтобы не перебить позицию .die) */
   .die.hit .scene { animation: diepop .6s cubic-bezier(.2,1.4,.4,1); }
   @keyframes diepop {
@@ -1026,7 +1049,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v6 · 2026-06-17 · dice-table";
+const BUILD = "Hoshikuzu v7 · 2026-06-17 · dice-throw";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1372,10 +1395,13 @@ const reels = [...document.querySelectorAll(".die")].map((el, idx) => {
     cube.appendChild(f);
     return f;
   });
+  const lift = document.createElement("div");
+  lift.className = "lift";
   scene.appendChild(cube);
-  el.appendChild(shadow); el.appendChild(scene);
+  lift.appendChild(scene);
+  el.appendChild(shadow); el.appendChild(lift);
   cube.style.transform = "rotateZ(0deg) rotateX(0deg) rotateY(0deg)";
-  return { el, scene, shadow, cube, faces, idx, rx: 0, ry: 0, rz: 0, landed: SYMS[0] };
+  return { el, lift, scene, shadow, cube, faces, idx, rx: 0, ry: 0, rz: 0, landed: SYMS[0] };
 });
 // наименьший угол ≥ cur+spins·360, конгруэнтный target по модулю 360 (вращаем всегда ВПЕРЁД)
 function alignForward(cur, target, spins) {
@@ -1387,42 +1413,60 @@ function rollTicks(dur) {
   const K = Math.max(6, Math.round(dur / 95));
   for (let k = 1; k <= K; k++) setTimeout(sTick, dur * (1 - (1 - k / K) ** 2));
 }
-// бросок кости (v20.1, «кинули на стол»): результат всегда на ПЕРЕДНЕЙ грани (вид сверху →
-// она «вверх»); кость кувыркается вокруг ПЕРЕДНЕГО НИЖНЕГО РЕБРА (transform-origin в CSS =
-// точка касания стола, НЕ центр куба), падает (scale на .scene + тень) и замирает в своей зоне
-// со случайным сдвигом и разворотом. heat (3-я кость) → дольше + лишний кувырок + свечение.
-// Сигнатура сохранена → doSpin/evaluate не меняются (читают r.landed).
+// «удар по столу» при нажатии — от него кости взлетают (один общий бум на бросок)
+function boardBump() {
+  const b = document.getElementById("board");
+  b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump");
+}
+// кольцо пыли в точке приземления кости
+function landRing(el) {
+  const b = el.getBoundingClientRect();
+  const ring = document.createElement("div");
+  ring.className = "landring";
+  ring.style.left = (b.left + b.width / 2) + "px";
+  ring.style.top = (b.top + b.height * 0.72) + "px";
+  document.getElementById("fxUnder").appendChild(ring);
+  setTimeout(() => ring.remove(), 440);
+}
+// бросок кости (v20.2 «кинули на стол»): результат на ПЕРЕДНЕЙ грани (вид сверху → «вверх»).
+// Кость ПОДЛЕТАЕТ и быстро крутится В ВОЗДУХЕ (центр-пивот + моушн-блюр на .lift), затем
+// ПАДАЕТ с импактом и подскакивает ВЕРТИКАЛЬНО (без перекатов, грани не переворачиваются —
+// спин куба завершается до касания). Сигнатура сохранена → doSpin/evaluate не меняются.
 function spinReel(r, target, idx, durMul, heat) {
   return new Promise(resolve => {
     r.landed = target;
-    r.faces[0].querySelector(".sym").textContent = target.emoji; // передняя грань = результат
-    const lo = GFX_LOW ? 1 : 2;
-    const turnsX = lo + ((Math.random() * 2) | 0) + (heat ? 1 : 0); // перекаты через переднее ребро
-    const turnsY = GFX_LOW ? 0 : ((Math.random() * 2) | 0);
-    r.rx = alignForward(r.rx, 0, turnsX);          // ←0 (mod 360) → передняя грань вверх в покое
-    r.ry = alignForward(r.ry, 0, turnsY);
-    r.rz = alignForward(r.rz, 0, GFX_LOW ? 0 : 1) + (Math.random() * 24 - 12); // спин + финальный yaw ±12°
-    const jx = Math.random() * 30 - 15, jy = Math.random() * 18 - 9; // джиттер позиции в зоне (без пересечений)
-    const dur = (820 + idx * 200 + (heat ? 520 : 0)) * durMul;
-    const ease = "cubic-bezier(.2,.7,.25,1)";
-    r.cube.style.transition = `transform ${dur}ms ${ease}`;
-    void r.cube.offsetWidth;                         // reflow → transition подхватит новый transform
+    r.faces[0].querySelector(".sym").textContent = target.emoji;
+    // быстрый многоосевой спин в воздухе, кончается передней гранью вверх (≡0 mod 360)
+    r.rx = alignForward(r.rx, 0, (heat ? 4 : 3) + ((Math.random() * 2) | 0));
+    r.ry = alignForward(r.ry, 0, (GFX_LOW ? 1 : 2) + ((Math.random() * 2) | 0));
+    r.rz = alignForward(r.rz, 0, 1) + (Math.random() * 24 - 12); // спин + финальный yaw ±12°
+    const jx = Math.random() * 26 - 13, jy = Math.random() * 14 - 7; // джиттер позиции в зоне (без пересечений)
+    const dur = (740 + (heat ? 240 : 0) + Math.random() * 130) * durMul; // лёгкий разнобой → не синхронно
+    // позиция: доезжает в свою зону к приземлению
+    r.el.style.transition = `transform ${dur}ms cubic-bezier(.25,.7,.3,1)`;
+    r.el.style.transform = `translate(${jx}px, ${jy}px)`;
+    // спин куба завершается ДО касания (~66% прыжка) → при отскоке грани не крутятся
+    const spinDur = dur * (GFX_LOW ? 0.6 : 0.66);
+    r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.15,.55,.3,1)`;
+    void r.cube.offsetWidth;
     r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
-    r.el.style.transition = `transform ${dur}ms ${ease}`;
-    r.el.style.transform = `translate(${jx}px, ${jy}px)`; // едет в свою зону на столе
-    if (!GFX_LOW) {                                  // падение «сверху на стол» + тень темнеет к посадке
-      r.scene.style.setProperty("--td", dur + "ms");
-      r.scene.classList.remove("drop"); void r.scene.offsetWidth; r.scene.classList.add("drop");
-      r.shadow.style.transition = "none"; r.shadow.style.opacity = ".16"; void r.shadow.offsetWidth;
-      r.shadow.style.transition = `opacity ${dur}ms ease-out`; r.shadow.style.opacity = ".42";
+    // прыжок/падение/сквош/блюр — keyframe на .lift (GFX_LOW: без прыжка/блюра)
+    if (!GFX_LOW) {
+      r.lift.style.setProperty("--td", dur + "ms");
+      r.lift.classList.remove("throw"); void r.lift.offsetWidth; r.lift.classList.add("throw");
     }
     if (heat) r.el.classList.add("heat");
-    rollTicks(dur);
+    rollTicks(spinDur);
+    // ИМПАКТ приземления (~75% прыжка): VFX + звук + вибро + «шлепок» тени
+    setTimeout(() => {
+      sThud(); vibrate(heat ? 28 : 20);
+      r.shadow.classList.remove("land"); void r.shadow.offsetWidth; r.shadow.classList.add("land");
+      if (!GFX_LOW) landRing(r.el);
+    }, dur * 0.75);
     setTimeout(() => {
       r.el.classList.remove("heat");
-      r.scene.classList.remove("drop");
-      r.scene.style.transform = "";                  // освободить .scene для win-pop (.die.hit .scene)
-      sThud(); vibrate(15);
+      r.shadow.classList.remove("land");
+      r.lift.classList.remove("throw");
       resolve();
     }, dur);
   });
@@ -1815,7 +1859,9 @@ function grantBoost(sym) {
 const throwBtn = document.getElementById("throwBtn");
 throwBtn.addEventListener("click", () => {
   ac();          // разблокировать звук жестом
-  vibrate(20);   // отклик на сам тап
+  if (!spinning && S.spins >= 1 && !bonusLanded && !(TUT.active && !TUT.force)) {
+    boardBump(); sThud(); vibrate(38); // «удар по столу» — от него кости взлетают (только ручной бросок, не авто)
+  }
   doSpin(1);
 });
 document.addEventListener("keydown", e => {
