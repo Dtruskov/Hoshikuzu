@@ -896,6 +896,8 @@
     <button id="devTrack">+ Track XP</button>
     <button id="devDay">next day ⏭</button>
     <button id="devGfx">GFX: HIGH</button>
+    <button id="devSpeed">⏩ x2: OFF</button>
+    <button id="devEmoji">test 🎲 canvas</button>
     <button id="devWipe">wipe save ⟲</button>
   </div>
   <!-- ═══ /DEV-ПАНЕЛЬ ═══ -->
@@ -1130,7 +1132,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v21.4.1 · 2026-06-19 · perf";
+const BUILD = "Hoshikuzu v21.4.2 · 2026-06-19 · perf";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1887,7 +1889,11 @@ function vfxWin(amount, color, opts) {
 // открыто ли какое-либо модальное окно (гача/магазин/прокачка/перерождение/спины/бонус)
 const overlayOpen = () => !!document.querySelector(".overlay.show");
 
+// dev «⏩ x2» (тоггл в dev-панели): глобально вдвое быстрее ВСЁ (ручной/авто/турбо) —
+// стандарт ≈0.75с, турбо-тиры становятся 0.5/0.25 (инап удваивает уже новый стандарт)
+let DEV_SPEED2X = false;
 async function doSpin(durMul) {
+  if (DEV_SPEED2X) durMul *= 0.5;
   // бонус выпал — кости заморожены, пока игрок не разберётся с окном награды
   if (bonusLanded) return;
   // туториал: бросок разрешён только на шагах с форс-исходом
@@ -3583,6 +3589,35 @@ document.getElementById("devDay").addEventListener("click", () => {
 });
 // v13.6: ручной тоггл тира графики (для теста на устройстве; авто-детект — gfxSample)
 document.getElementById("devGfx").addEventListener("click", () => setGfx(!GFX_LOW));
+// dev «⏩ x2»: глобальный тоггл удвоения скорости броска (см. DEV_SPEED2X в doSpin)
+document.getElementById("devSpeed").addEventListener("click", e => {
+  DEV_SPEED2X = !DEV_SPEED2X;
+  e.target.textContent = "⏩ x2: " + (DEV_SPEED2X ? "ON" : "OFF");
+});
+// диагностика: рисует эмодзи на canvas двумя путями — напрямую (как будет в движке A) и через
+// dataURL→img (как делал v21.4). Глянуть на iPhone, что из этого видно → выбор пути для движка A
+document.getElementById("devEmoji").addEventListener("click", () => {
+  const old = document.getElementById("emojiTest"); if (old) { old.remove(); return; }
+  const box = document.createElement("div");
+  box.id = "emojiTest";
+  box.style.cssText = "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9999;background:#1a1230;border:2px solid #8a7a4f;border-radius:12px;padding:14px;display:flex;flex-wrap:wrap;justify-content:center;gap:14px;color:#fff;font:12px sans-serif;width:230px";
+  const c = document.createElement("canvas"); c.width = c.height = 100;
+  const x = c.getContext("2d");
+  x.fillStyle = "#efe7cf"; x.fillRect(0, 0, 100, 100);
+  x.font = "60px system-ui,'Apple Color Emoji','Segoe UI Emoji',sans-serif";
+  x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("🎲", 50, 54);
+  const img = document.createElement("img"); img.src = c.toDataURL();
+  const col = (label, node) => {
+    const d = document.createElement("div"); d.style.textAlign = "center";
+    node.style.cssText = "width:80px;height:80px;border:1px solid #555;display:block;margin-bottom:4px";
+    d.appendChild(node); d.insertAdjacentHTML("beforeend", label); return d;
+  };
+  box.appendChild(col("canvas напрямую", c));
+  box.appendChild(col("dataURL → img", img));
+  box.insertAdjacentHTML("beforeend", "<div style='width:100%;text-align:center;margin-top:4px;opacity:.7'>тап — закрыть</div>");
+  box.onclick = () => box.remove();
+  document.body.appendChild(box);
+});
 document.getElementById("devWipe").addEventListener("click", () => {
   if (confirm("DEV: wipe save and start over?")) wipeSave();
 });
