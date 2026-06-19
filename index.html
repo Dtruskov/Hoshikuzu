@@ -188,12 +188,14 @@
   .cube { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; transform-origin: 50% 50%; } /* спин строго от ЦЕНТРА */
   .face {
     position: absolute; width: 60px; height: 60px; backface-visibility: hidden;
-    /* v21.4 ПЕРФ: грань = ОДНА пред-рендеренная bitmap (градиент+символ+кант запечены в canvas
-       один раз через faceBitmap()). Компоновщик растеризует слой однократно в текстуру и просто
-       крутит её в 3D — без перепейнта текста/градиента каждый кадр (главный пожиратель GPU на iOS).
-       Раньше: живой эмодзи-глиф 34px + CSS-градиент + box-shadow на 18 гранях рерослись покадрово */
+    display: flex; align-items: center; justify-content: center;
+    /* v21.4.1: ФОН грани (градиент «слоновая кость» + кант) = одна пред-рендеренная bitmap
+       (faceBitmap) — статичная текстура, компоновщик крутит её в 3D без перепейнта градиента/тени.
+       А СИМВОЛ остаётся живым DOM-<span>: эмодзи через canvas-fillText НЕ рендерится в iOS-webview
+       Telegram (toDataURL даёт пустой глиф) — символы пропадали. На ПК-клиенте TG canvas-эмодзи ок */
     background-size: 100% 100%; background-repeat: no-repeat;
   }
+  .face .sym { font-size: 34px; line-height: 1; pointer-events: none; }
   .face.f-front  { transform: rotateY(  0deg) translateZ(30px); }
   .face.f-back   { transform: rotateY(180deg) translateZ(30px); }
   .face.f-right  { transform: rotateY( 90deg) translateZ(30px); }
@@ -1520,13 +1522,13 @@ const randSym = () => {
 const FACE_CLS = ["f-front", "f-back", "f-right", "f-left", "f-top", "f-bottom"];
 // эмодзи «незначащих» граней — антураж (базовые ресурсы + wild); передняя грань = результат броска
 const FILLERS = [SYMS[0], SYMS[1], SYMS[2], SYMS[3], SYMS[0], SYMS[2]];
-// v21.4: грань кости пред-рендерится в bitmap ОДИН раз (кэш по эмодзи) → url(data:...) для
-// background-image. Запекаем градиент «слоновая кость» + кант + символ по центру. Смена
-// результата на передней грани = подмена background-image (без реростера глифа в полёте).
-const _faceCache = new Map();
-function faceBitmap(emoji) {
-  let url = _faceCache.get(emoji);
-  if (url) return url;
+// v21.4.1: ФОН грани (градиент «слоновая кость» + кант) пред-рендерится в bitmap ОДИН раз и
+// шарится всеми 18 гранями — статичная текстура вместо CSS-градиента+box-shadow (перепейнт на
+// каждой грани при вращении). Символ НЕ запекаем: эмодзи-fillText даёт пустой глиф в iOS-webview
+// Telegram → символ остаётся живым DOM-<span> поверх фона (надёжно везде).
+let _faceBg = null;
+function faceBitmap() {
+  if (_faceBg) return _faceBg;
   const S = 120; // 2× для чёткости на retina (60px-грань)
   const c = document.createElement("canvas"); c.width = c.height = S;
   const x = c.getContext("2d");
@@ -1534,12 +1536,8 @@ function faceBitmap(emoji) {
   g.addColorStop(0, "#fffdf5"); g.addColorStop(.55, "#efe7cf"); g.addColorStop(1, "#d3c7a6");
   x.fillStyle = g; x.fillRect(0, 0, S, S);
   x.lineWidth = 3; x.strokeStyle = "rgba(150,128,80,.5)"; x.strokeRect(1.5, 1.5, S - 3, S - 3); // кант
-  x.font = "68px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif";
-  x.textAlign = "center"; x.textBaseline = "middle";
-  x.fillText(emoji, S / 2, S / 2 + 4);
-  url = `url(${c.toDataURL()})`;
-  _faceCache.set(emoji, url);
-  return url;
+  _faceBg = `url(${c.toDataURL()})`;
+  return _faceBg;
 }
 const reels = [...document.querySelectorAll(".die")].map((el, idx) => {
   const shadow = document.createElement("div");
@@ -1551,7 +1549,8 @@ const reels = [...document.querySelectorAll(".die")].map((el, idx) => {
   const faces = FACE_CLS.map((cls, i) => {
     const f = document.createElement("div");
     f.className = "face " + cls;
-    f.style.backgroundImage = faceBitmap(FILLERS[i].emoji);
+    f.style.backgroundImage = faceBitmap();
+    f.innerHTML = `<span class="sym">${FILLERS[i].emoji}</span>`;
     cube.appendChild(f);
     return f;
   });
@@ -1626,7 +1625,7 @@ function spinReel(r, target, idx, durMul, heat, zone) {
     const delay = idx * 130;
     // ВИЗУАЛЬНАЯ подмена грани на результат — когда кость уже в воздухе и крутится/размыта (v20.7),
     // чтобы игрок не видел, как грань «перещёлкивается» в самом начале броска
-    setTimeout(() => { r.faces[0].style.backgroundImage = faceBitmap(target.emoji); }, delay + 160);
+    setTimeout(() => { r.faces[0].querySelector(".sym").textContent = target.emoji; }, delay + 160);
     setTimeout(() => {
       // ПОЗИЦИЯ доезжает в «точку падения» ЗА ВРЕМЯ ВОЗДУХА (~74%), НЕ за весь ролл — иначе кость
       // «ползёт по столу» после остановки. Колоколообразно (ease-in-out: медленно-быстро-медленно)
