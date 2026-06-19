@@ -143,7 +143,7 @@
   }
   @keyframes bflashk { 0% { opacity: .12; } 100% { opacity: 0; } }
   /* ── 3D кость (v20.2 «кинули на стол»): .die (позиция в зоне) > .shadow (тень) + .lift
-     (прыжок/падение/сквош/моушн-блюр) > .scene (перспектива) > .cube (спин В ВОЗДУХЕ, центр-пивот)
+     (прыжок/падение/сквош) > .scene (перспектива) > .cube (спин В ВОЗДУХЕ, центр-пивот)
      > 6×.face. Грани без скругления. При приземлении грани НЕ крутятся — только верт. отскок ── */
   .die { width: 60px; height: 60px; flex: none; position: relative; will-change: transform; z-index: 2; } /* над #tableFx */
   .shadow {
@@ -164,46 +164,36 @@
     100% { transform: translate(-50%,-50%) scale(1);    opacity: .42; }
   }
   /* прыжок → пик(спин+блюр) → падение → УДАР(сквош) → подскок → покой. Магнитуду тюнить ЗДЕСЬ */
-  .lift { position: absolute; inset: 0; will-change: transform, filter; transform-origin: 50% 50%; } /* скейл/сквош строго от ЦЕНТРА (v20.6) */
+  .lift { position: absolute; inset: 0; will-change: transform; transform-origin: 50% 50%; } /* скейл/сквош строго от ЦЕНТРА (v20.6); v21.3 — filter убран (моушн-блёр давил GPU) */
   /* v20.8: РЕЗКАЯ кривая `cubic-bezier(.35,.45,.65,.55)` на ВСЮ анимацию куба (взлёт/скейл/
      поворот/отскоки — одной кривой): резкое начало и резкий конец вместо плавного (была
-     EaseInOutQuart — мягкие концы, приземление «таяло»). Рост ×1.3, взлёт ~5%, блюр ~3px,
-     приземление на 75%, отскоки 75-100% */
+     EaseInOutQuart — мягкие концы, приземление «таяло»). Рост ×1.3, взлёт ~5%,
+     приземление на 75%, отскоки 75-100%. v21.3: МОУШН-БЛЁР УБРАН (filter: blur — главный
+     пожиратель GPU на iOS/слабых; translateY/scale остаются — дешёвый композит) */
   .lift.throw { animation: diceThrow var(--td, 1500ms) cubic-bezier(.35,.45,.65,.55); }
   @keyframes diceThrow {
-    0%   { transform: translateY(2px)    scaleX(1.1)  scaleY(.85); filter: blur(0); }    /* рывок вверх */
-    5%   { transform: translateY(-90px)  scaleX(1.28) scaleY(1.28); filter: blur(2.5px); } /* быстрый взлёт: крупнее ×1.3 + лёгкий блюр */
-    38%  { transform: translateY(-104px) scaleX(1.3)  scaleY(1.3);  filter: blur(3px); }   /* апекс */
-    68%  { transform: translateY(-28px)  scaleX(1.12) scaleY(1.12); filter: blur(1px); }   /* падает, к норме */
-    75%  { transform: translateY(0)      scaleX(1.2)  scaleY(.68);  filter: blur(0); }    /* УДАР о стол: сквош */
-    84%  { transform: translateY(-30px)  scaleX(.93)  scaleY(1.1); }                       /* отскок 1 */
-    91%  { transform: translateY(0)      scaleX(1.1)  scaleY(.9); }                        /* касание */
-    96%  { transform: translateY(-11px)  scaleX(1)    scaleY(1); }                         /* отскок 2 */
-    100% { transform: translateY(0)      scaleX(1)    scaleY(1);  filter: blur(0); }
-  }
-  /* LOW-вариант (v21.1): тот же прыжок+скейл, но БЕЗ блюра (блюр — единственное дорогое;
-     translateY/scale — дешёвый композит GPU). Прыжок есть и на слабых устройствах */
-  .lift.throwlite { animation: diceThrowLite var(--td, 1500ms) cubic-bezier(.35,.45,.65,.55); }
-  @keyframes diceThrowLite {
-    0%   { transform: translateY(2px)    scaleX(1.1)  scaleY(.85); }
-    5%   { transform: translateY(-90px)  scaleX(1.28) scaleY(1.28); }
-    38%  { transform: translateY(-104px) scaleX(1.3)  scaleY(1.3); }
-    68%  { transform: translateY(-28px)  scaleX(1.12) scaleY(1.12); }
-    75%  { transform: translateY(0)      scaleX(1.2)  scaleY(.68); }
-    84%  { transform: translateY(-30px)  scaleX(.93)  scaleY(1.1); }
-    91%  { transform: translateY(0)      scaleX(1.1)  scaleY(.9); }
-    96%  { transform: translateY(-11px)  scaleX(1)    scaleY(1); }
+    0%   { transform: translateY(2px)    scaleX(1.1)  scaleY(.85); }   /* рывок вверх */
+    5%   { transform: translateY(-90px)  scaleX(1.28) scaleY(1.28); }  /* быстрый взлёт: крупнее ×1.3 */
+    38%  { transform: translateY(-104px) scaleX(1.3)  scaleY(1.3); }   /* апекс */
+    68%  { transform: translateY(-28px)  scaleX(1.12) scaleY(1.12); }  /* падает, к норме */
+    75%  { transform: translateY(0)      scaleX(1.2)  scaleY(.68); }   /* УДАР о стол: сквош */
+    84%  { transform: translateY(-30px)  scaleX(.93)  scaleY(1.1); }   /* отскок 1 */
+    91%  { transform: translateY(0)      scaleX(1.1)  scaleY(.9); }    /* касание */
+    96%  { transform: translateY(-11px)  scaleX(1)    scaleY(1); }     /* отскок 2 */
     100% { transform: translateY(0)      scaleX(1)    scaleY(1); }
   }
+  /* v21.3: diceThrowLite удалён — после снятия блёра он стал идентичен diceThrow; throw теперь
+     один на все устройства (GFX_LOW по-прежнему режет число оборотов куба в spinReel) */
   .scene { position: absolute; inset: 0; perspective: 380px; perspective-origin: 50% 50%; z-index: 1; } /* центр (v20.6) */
   .cube { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; transform-origin: 50% 50%; } /* спин строго от ЦЕНТРА */
   .face {
-    position: absolute; width: 60px; height: 60px;
-    display: flex; align-items: center; justify-content: center; backface-visibility: hidden;
-    background: linear-gradient(145deg, #fffdf5 0%, #f2ebd6 52%, #ddd2b6 100%); /* классическая слоновая кость (v20.8) */
-    box-shadow: inset 0 0 0 1.5px rgba(150,128,80,.5), inset 0 0 16px rgba(90,72,35,.2);
+    position: absolute; width: 60px; height: 60px; backface-visibility: hidden;
+    /* v21.4 ПЕРФ: грань = ОДНА пред-рендеренная bitmap (градиент+символ+кант запечены в canvas
+       один раз через faceBitmap()). Компоновщик растеризует слой однократно в текстуру и просто
+       крутит её в 3D — без перепейнта текста/градиента каждый кадр (главный пожиратель GPU на iOS).
+       Раньше: живой эмодзи-глиф 34px + CSS-градиент + box-shadow на 18 гранях рерослись покадрово */
+    background-size: 100% 100%; background-repeat: no-repeat;
   }
-  .face .sym { font-size: 34px; line-height: 1; pointer-events: none; }
   .face.f-front  { transform: rotateY(  0deg) translateZ(30px); }
   .face.f-back   { transform: rotateY(180deg) translateZ(30px); }
   .face.f-right  { transform: rotateY( 90deg) translateZ(30px); }
@@ -255,11 +245,13 @@
     position: fixed; pointer-events: none; z-index: 19;
     font-weight: 900; white-space: nowrap; letter-spacing: .5px; text-align: center;
     font-size: clamp(30px, 9vw, 52px);
-    text-shadow: 0 3px 0 rgba(0,0,0,.45), 0 0 24px currentColor;
+    /* v21.3: блёр-glow (0 0 24px) убран — размытие текста дорогое; «объём» держим дешёвыми
+       жёсткими тенями-слоями (offset, без blur) + обводкой */
+    text-shadow: 0 2px 0 rgba(0,0,0,.55), 0 3px 0 rgba(0,0,0,.35), 0 0 0 currentColor;
     -webkit-text-stroke: 1px rgba(0,0,0,.3);
     animation: bigwinpop 1.4s cubic-bezier(.2,1.5,.35,1) forwards;
   }
-  /* GFX_LOW: размытая тень (0 0 24px) + обводка крупного текста — дорогой пейнт; убираем */
+  /* GFX_LOW: ещё дешевле — без обводки */
   .bigwin.lite { text-shadow: 0 2px 0 rgba(0,0,0,.55); -webkit-text-stroke: 0; }
   @keyframes bigwinpop {
     0%   { opacity: 0; transform: translate(-50%,-50%) scale(.3) rotate(-6deg); }
@@ -744,10 +736,19 @@
   }
   /* изобильный фон бонуса: дождь монет/блёсток позади окна */
   #jpVfx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
-  .jpfall {
+  /* v21.3: дождь из дешёвых CSS-фигур вместо эмодзи (цветной растр эмодзи давил GPU).
+     .jpcoin — золотой кружок (радиальный градиент), .jpconf — цветной лоскут-конфетти.
+     Оба падают одной keyframes jpfall (только transform/opacity — композит на GPU). */
+  .jpcoin, .jpconf {
     position: absolute; top: -10vh; will-change: transform, opacity;
     animation: jpfall linear forwards;
   }
+  .jpcoin {
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff3b0, #ffd34d 46%, #d99a14 100%);
+    box-shadow: inset 0 0 0 1px rgba(150,95,0,.45);
+  }
+  .jpconf { border-radius: 2px; }
   @keyframes jpfall {
     0%   { transform: translateY(-10vh) rotate(0); opacity: 0; }
     12%  { opacity: 1; }
@@ -1127,7 +1128,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v21.2 · 2026-06-17 · flash-fix";
+const BUILD = "Hoshikuzu v21.3 · 2026-06-18 · perf";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1519,6 +1520,27 @@ const randSym = () => {
 const FACE_CLS = ["f-front", "f-back", "f-right", "f-left", "f-top", "f-bottom"];
 // эмодзи «незначащих» граней — антураж (базовые ресурсы + wild); передняя грань = результат броска
 const FILLERS = [SYMS[0], SYMS[1], SYMS[2], SYMS[3], SYMS[0], SYMS[2]];
+// v21.4: грань кости пред-рендерится в bitmap ОДИН раз (кэш по эмодзи) → url(data:...) для
+// background-image. Запекаем градиент «слоновая кость» + кант + символ по центру. Смена
+// результата на передней грани = подмена background-image (без реростера глифа в полёте).
+const _faceCache = new Map();
+function faceBitmap(emoji) {
+  let url = _faceCache.get(emoji);
+  if (url) return url;
+  const S = 120; // 2× для чёткости на retina (60px-грань)
+  const c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, S, S); // ≈145deg «слоновая кость»
+  g.addColorStop(0, "#fffdf5"); g.addColorStop(.55, "#efe7cf"); g.addColorStop(1, "#d3c7a6");
+  x.fillStyle = g; x.fillRect(0, 0, S, S);
+  x.lineWidth = 3; x.strokeStyle = "rgba(150,128,80,.5)"; x.strokeRect(1.5, 1.5, S - 3, S - 3); // кант
+  x.font = "68px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif";
+  x.textAlign = "center"; x.textBaseline = "middle";
+  x.fillText(emoji, S / 2, S / 2 + 4);
+  url = `url(${c.toDataURL()})`;
+  _faceCache.set(emoji, url);
+  return url;
+}
 const reels = [...document.querySelectorAll(".die")].map((el, idx) => {
   const shadow = document.createElement("div");
   shadow.className = "shadow";
@@ -1529,7 +1551,7 @@ const reels = [...document.querySelectorAll(".die")].map((el, idx) => {
   const faces = FACE_CLS.map((cls, i) => {
     const f = document.createElement("div");
     f.className = "face " + cls;
-    f.innerHTML = `<span class="sym">${FILLERS[i].emoji}</span>`;
+    f.style.backgroundImage = faceBitmap(FILLERS[i].emoji);
     cube.appendChild(f);
     return f;
   });
@@ -1578,9 +1600,9 @@ function boardFlash() {
   setTimeout(() => f.remove(), 210);
 }
 // бросок кости (v20.2 «кинули на стол»): результат на ПЕРЕДНЕЙ грани (вид сверху → «вверх»).
-// Кость ПОДЛЕТАЕТ и быстро крутится В ВОЗДУХЕ (центр-пивот + моушн-блюр на .lift), затем
-// ПАДАЕТ с импактом и подскакивает ВЕРТИКАЛЬНО (без перекатов, грани не переворачиваются —
-// спин куба завершается до касания). Сигнатура сохранена → doSpin/evaluate не меняются.
+// Кость ПОДЛЕТАЕТ и быстро крутится В ВОЗДУХЕ (центр-пивот), затем ПАДАЕТ с импактом и
+// подскакивает ВЕРТИКАЛЬНО (без перекатов, грани не переворачиваются — спин куба завершается
+// до касания). Сигнатура сохранена → doSpin/evaluate не меняются.
 function spinReel(r, target, idx, durMul, heat, zone) {
   if (zone == null) zone = idx;
   return new Promise(resolve => {
@@ -1604,7 +1626,7 @@ function spinReel(r, target, idx, durMul, heat, zone) {
     const delay = idx * 130;
     // ВИЗУАЛЬНАЯ подмена грани на результат — когда кость уже в воздухе и крутится/размыта (v20.7),
     // чтобы игрок не видел, как грань «перещёлкивается» в самом начале броска
-    setTimeout(() => { r.faces[0].querySelector(".sym").textContent = target.emoji; }, delay + 160);
+    setTimeout(() => { r.faces[0].style.backgroundImage = faceBitmap(target.emoji); }, delay + 160);
     setTimeout(() => {
       // ПОЗИЦИЯ доезжает в «точку падения» ЗА ВРЕМЯ ВОЗДУХА (~74%), НЕ за весь ролл — иначе кость
       // «ползёт по столу» после остановки. Колоколообразно (ease-in-out: медленно-быстро-медленно)
@@ -1614,10 +1636,10 @@ function spinReel(r, target, idx, durMul, heat, zone) {
       r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.35,.45,.65,.55)`;
       void r.cube.offsetWidth;
       r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
-      // ПРЫЖОК+скейл+тень — на ВСЕХ устройствах (дёшево, композит). На LOW — без блюра (throwlite, v21.1)
+      // ПРЫЖОК+скейл+тень — на ВСЕХ устройствах (дёшево, чистый transform-композит; блёр снят в v21.3)
       r.lift.style.setProperty("--td", dur + "ms");
-      r.lift.classList.remove("throw", "throwlite"); void r.lift.offsetWidth;
-      r.lift.classList.add(GFX_LOW ? "throwlite" : "throw");
+      r.lift.classList.remove("throw"); void r.lift.offsetWidth;
+      r.lift.classList.add("throw");
       r.shadow.style.setProperty("--td", dur + "ms");
       r.shadow.classList.remove("throw"); void r.shadow.offsetWidth; r.shadow.classList.add("throw");
       if (heat) r.el.classList.add("heat");
@@ -1630,7 +1652,7 @@ function spinReel(r, target, idx, durMul, heat, zone) {
     setTimeout(() => {
       r.el.classList.remove("heat");
       r.shadow.classList.remove("throw");
-      r.lift.classList.remove("throw", "throwlite");
+      r.lift.classList.remove("throw");
       if (r.landed && r.landed.wild) r.el.classList.add("wildfx"); // ⚡ выпал на кости → электрорамка «жарит» (v21)
       resolve();
     }, delay + dur);
@@ -1710,7 +1732,7 @@ const vfxCanvas = document.getElementById("vfx");
 const vctx = vfxCanvas.getContext("2d");
 let vfxW = 0, vfxH = 0;
 function vfxResize() {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(1.5, window.devicePixelRatio || 1); // v21.3: кап 2→1.5 — искрам чёткость не нужна, полноэкранная заливка кадра дешевле
   vfxW = window.innerWidth; vfxH = window.innerHeight;
   vfxCanvas.width = Math.round(vfxW * dpr); vfxCanvas.height = Math.round(vfxH * dpr);
   vfxCanvas.style.width = vfxW + "px"; vfxCanvas.style.height = vfxH + "px";
@@ -1738,10 +1760,6 @@ function vfxLoop(now) {
     if (p.type === "spark") {
       vctx.fillStyle = p.color;
       vctx.beginPath(); vctx.arc(p.x, p.y, p.size, 0, 6.283); vctx.fill();
-    } else if (p.type === "glyph") {
-      vctx.save(); vctx.translate(p.x, p.y); vctx.rotate(p.rot);
-      vctx.font = p.size + "px system-ui"; vctx.textAlign = "center"; vctx.textBaseline = "middle";
-      vctx.fillText(p.txt, 0, 0); vctx.restore();
     } else if (p.type === "num") {
       const val = Math.round(p.from + (p.to - p.from) * Math.min(1, k / .55)); // намотка за ~55% жизни
       const pop = k < .16 ? 1 + (1 - k / .16) * .5 : 1, sc = p.size / 30 * pop;
@@ -1749,7 +1767,7 @@ function vfxLoop(now) {
       vctx.font = "900 30px system-ui"; vctx.textAlign = "center"; vctx.textBaseline = "middle";
       const s = (p.prefix || "") + fmt(val) + (p.suffix || "");
       vctx.lineJoin = "round"; vctx.lineWidth = 5; vctx.strokeStyle = "rgba(0,0,0,.65)"; vctx.strokeText(s, 0, 0); // обводка → читается поверх хаоса
-      if (!GFX_LOW) { vctx.shadowColor = p.color; vctx.shadowBlur = 14; }
+      // v21.2 ПЕРФ: убран shadowBlur на цифрах (canvas shadow-blur — дорогой пофреймовый проход); обводка держит читаемость
       vctx.fillStyle = p.color; vctx.fillText(s, 0, 0);
       vctx.restore();
     }
@@ -1758,27 +1776,32 @@ function vfxLoop(now) {
   vfxRAF = parts.length ? requestAnimationFrame(vfxLoop) : (vfxLast = 0, null);
 }
 function boardCenter() { const b = document.getElementById("board").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }
-// разноцветные искры (канвас; сигнатура confetti сохранена → все старые вызовы стали дешевле)
+// v21.3 ИЗОБИЛИЕ ДЁШЕВО: вернули частицы, но ТОЛЬКО как заливные кружки (type "spark" —
+// arc+fill). Дорогое осталось выключенным навсегда: эмодзи-fillText (цветной растр) и
+// shadowBlur. Кружков можно МНОГО почти бесплатно → пышная картинка без лагов.
 function confetti(under, cx, cy) {
   if (cx == null) { const c = boardCenter(); cx = c.x; cy = c.y; }
-  const N = GFX_LOW ? 18 : 50;
+  const N = GFX_LOW ? 28 : 66;
   for (let i = 0; i < N; i++) {
-    const an = Math.random() * 6.283, sp = .08 + Math.random() * .5;
-    pushPart({ type: "spark", x: cx, y: cy, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - .14, grav: .0012,
-      size: 2.5 + Math.random() * 4, color: `hsl(${Math.random() * 360},95%,62%)`, dur: 850 + Math.random() * 550 });
+    const an = Math.random() * 6.283, sp = .08 + Math.random() * .55;
+    pushPart({ type: "spark", x: cx, y: cy, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - .16, grav: .0013,
+      size: 2 + Math.random() * 4, color: `hsl(${Math.random() * 360},95%,62%)`, dur: 800 + Math.random() * 620 });
   }
 }
-// разлёт эмодзи (канвас; сигнатура сохранена)
+// «бёрст» действия: эмодзи-глиф заменён на пучок искр (эмодзи-параметр сохранён в сигнатуре
+// ради всех старых вызовов, но теперь лишь намекает на тёплый/радужный тон). Искр вдвое
+// больше прежних эмодзи — изобильнее и при этом дешевле.
 function emojiBurst(emoji, n, big, fromEl, under) {
   const b = (fromEl || document.getElementById("board")).getBoundingClientRect();
   const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
-  if (GFX_LOW) n = Math.min(n, 14);
-  const pool = big ? [emoji, emoji, "✨", "⭐", "💫"] : [emoji, emoji, emoji, "✨"];
-  for (let i = 0; i < n; i++) {
-    const an = Math.random() * 6.283, sp = .12 + Math.random() * (big ? .52 : .38);
-    pushPart({ type: "glyph", x: cx, y: cy, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - .16, grav: .0014,
-      rot: Math.random() * 6.28, vr: (Math.random() - .5) * .02,
-      size: 24 + Math.random() * (big ? 28 : 18), txt: pool[(Math.random() * pool.length) | 0], dur: 1050 + Math.random() * 550 });
+  const N = (GFX_LOW ? Math.min(n, 16) : n) * 2;
+  for (let i = 0; i < N; i++) {
+    const an = Math.random() * 6.283, sp = .1 + Math.random() * (big ? .55 : .4);
+    const warm = Math.random() < .6;
+    pushPart({ type: "spark", x: cx, y: cy, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - .18, grav: .0014,
+      size: (big ? 2.6 : 2) + Math.random() * (big ? 5 : 3.5),
+      color: `hsl(${warm ? 38 + Math.random() * 18 : Math.random() * 360},95%,${58 + Math.random() * 16}%)`,
+      dur: 850 + Math.random() * 650 });
   }
 }
 // count-up цифра: наматывает от ~15% к toVal (запрос автора), читаемая (обводка+свечение), всплывает
@@ -1791,17 +1814,15 @@ function vfxNumber(toVal, color, opts) {
     from: Math.floor(toVal * 0.15), to: Math.round(toVal),
     size: opts.size || 32, color, prefix: opts.prefix || "", suffix: opts.suffix || "", dur: opts.dur || 1400 });
 }
-// ливень монет/искр сверху — на крупный вин
+// ливень сверху — дешёвые золотые искры (эмодзи-монеты убраны: растр давил GPU)
 function vfxRain(tier) {
-  const n = (GFX_LOW ? 9 : 20) * tier;
+  const n = (GFX_LOW ? 12 : 26) * tier;
   for (let i = 0; i < n; i++) {
-    const glyph = Math.random() < .5;
-    pushPart({ type: glyph ? "glyph" : "spark", x: Math.random() * vfxW, y: -20 - Math.random() * 90,
-      vx: (Math.random() - .5) * .06, vy: .18 + Math.random() * .22, grav: .0006,
-      rot: Math.random() * 6.28, vr: (Math.random() - .5) * .015,
-      size: glyph ? 18 + Math.random() * 16 : 2.5 + Math.random() * 4,
-      txt: Math.random() < .5 ? "🪙" : "💰", color: `hsl(${42 + Math.random() * 14},100%,${56 + Math.random() * 14}%)`,
-      dur: 1300 + Math.random() * 800 });
+    pushPart({ type: "spark", x: Math.random() * vfxW, y: -10 - Math.random() * 80,
+      vx: (Math.random() - .5) * .05, vy: .2 + Math.random() * .24, grav: .0006,
+      size: 2 + Math.random() * 4,
+      color: `hsl(${42 + Math.random() * 16},100%,${58 + Math.random() * 14}%)`,
+      dur: 1200 + Math.random() * 800 });
   }
 }
 /* ── КОМБО (окно ~3.5с, переживает промахи) → эскалация джуса ── */
@@ -1842,7 +1863,7 @@ function sWin(n, tier) {
   if (tier >= 2) beep(f * 2, .18, "triangle", .05, .09);
   if (tier >= 3) sFanfare();
 }
-/* ── ЕДИНЫЙ вин-джус: count-up + искры + эмодзи + комбо + тир-баннер + вспышка/тряска + звук ── */
+/* ── ЕДИНЫЙ вин-джус: count-up + дешёвые искры + комбо + тир-баннер + вспышка/тряска + звук (v21.3) ── */
 function vfxWin(amount, color, opts) {
   opts = opts || {};
   const n = comboHit();
@@ -1850,13 +1871,14 @@ function vfxWin(amount, color, opts) {
   const c = boardCenter();
   const cx = opts.cx != null ? opts.cx : c.x, cy = opts.cy != null ? opts.cy : c.y;
   vfxNumber(amount, color, { cx, cy: cy - 6, size: 30 + tier * 9, prefix: opts.prefix != null ? opts.prefix : "+", suffix: opts.suffix || "", dur: 1250 + tier * 280 });
-  const sparks = (GFX_LOW ? 14 : 34) + tier * 16 + Math.min(n, 8) * 4;
+  // v21.3: густой пучок ДЕШЁВЫХ искр — чем выше тир/комбо, тем изобильнее (без эмодзи/блёра)
+  const sparks = (GFX_LOW ? 18 : 42) + tier * 18 + Math.min(n, 10) * 5;
   for (let i = 0; i < sparks; i++) {
-    const an = Math.random() * 6.283, sp = .1 + Math.random() * (.4 + tier * .12);
-    pushPart({ type: "spark", x: cx, y: cy, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - .15, grav: .0012,
-      size: 2.5 + Math.random() * 4.5, color: opts.spark || color, dur: 800 + Math.random() * 600 });
+    const an = Math.random() * 6.283, sp = .1 + Math.random() * (.42 + tier * .13);
+    pushPart({ type: "spark", x: cx, y: cy, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - .16, grav: .0012,
+      size: 2 + Math.random() * 4.5, color: opts.spark || color, dur: 800 + Math.random() * 650 });
   }
-  emojiBurst(opts.emoji || "💰", 8 + tier * 6, tier >= 2, opts.fromEl || null, false);
+  emojiBurst(opts.emoji || "💰", 8 + tier * 6, tier >= 2, opts.fromEl || null, false); // доп. искры (эмодзи-параметр = тон)
   if (tier >= 2) vfxRain(tier);
   if (tier >= 1) { screenPunch(tier); tierBanner(tier); }
   sWin(n, tier);
@@ -3141,7 +3163,7 @@ document.getElementById("spinsClose").addEventListener("click", () => spinsOverl
 
 /* ═══════════ бонус: окно награды за рекламу (v12.2, balance.md §8, monetization.md §3a) ═══════════ */
 // Триггер — 3×💎 на линии (ролл BONUS_P в doSpin → evaluate зовёт showBonus).
-// Игрок «гэмблит рекламу»: каждый спин шанс выбить бонус-символ. Окно живёт 5с,
+// Каждый бросок — шанс выбить бонус-символ. Окно живёт 5с,
 // яркий мигающий фон + дождь монет привлекают внимание. Награда — за просмотр (🎬).
 const bonusOverlay = document.getElementById("bonusOverlay");
 const jpDesc = document.getElementById("jpDesc");
@@ -3164,23 +3186,31 @@ function bonusAttention() {        // мигание (CSS) + вибрация + 
 }
 // изобильный фон: пока окно открыто — дождь монет/блёсток + периодические конфетти
 const jpVfx = document.getElementById("jpVfx");
-const JP_POOL = ["💰", "🪙", "💎", "✨", "🎲", "🧿", "⭐", "💵", "🤑", "🌟"];
+const JP_CONF_HUES = [48, 0, 200, 280, 130, 330]; // тёплые/радужные лоскуты конфетти
 let jpVfxTimer = null, jpVfxTick = 0;
 function bonusVFXStart() {
   jpVfx.innerHTML = ""; jpVfxTick = 0;
-  bonusSpawn(14);                         // сразу плотный залп
+  bonusSpawn(GFX_LOW ? 9 : 16);           // сразу плотный залп
   jpVfxTimer = setInterval(() => {
-    bonusSpawn(3);
-    if (++jpVfxTick % 3 === 0) confetti();  // волны конфетти ~каждые 0.6с
+    bonusSpawn(GFX_LOW ? 2 : 4);
+    if (++jpVfxTick % 3 === 0) confetti();  // волны искр ~каждые 0.6с
   }, 200);
 }
+// v21.3: дешёвые CSS-фигуры (монета-градиент / цветной лоскут) вместо эмодзи
 function bonusSpawn(n) {
   for (let i = 0; i < n; i++) {
     const d = document.createElement("span");
-    d.className = "jpfall";
-    d.textContent = JP_POOL[Math.floor(Math.random() * JP_POOL.length)];
+    const coin = Math.random() < .5;
+    if (coin) {
+      d.className = "jpcoin";
+      const s = (12 + Math.random() * 18) | 0; d.style.width = d.style.height = s + "px";
+    } else {
+      d.className = "jpconf";
+      const w = (6 + Math.random() * 6) | 0;
+      d.style.width = w + "px"; d.style.height = (w * 1.7) + "px";
+      d.style.background = `hsl(${JP_CONF_HUES[(Math.random() * JP_CONF_HUES.length) | 0]},90%,${56 + Math.random() * 14}%)`;
+    }
     d.style.left = (Math.random() * 100) + "%";
-    d.style.fontSize = (20 + Math.random() * 36) + "px";
     const dur = 1.5 + Math.random() * 1.8;
     d.style.animationDuration = dur + "s";
     d.style.setProperty("--r", (Math.random() * 720 - 360) + "deg");
