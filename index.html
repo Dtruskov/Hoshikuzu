@@ -1139,7 +1139,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22 · 2026-06-20 · canvas dice";
+const BUILD = "Hoshikuzu v22.1 · 2026-06-20 · canvas dice";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1740,6 +1740,9 @@ function diceLoop() {
 }
 function diceStart() { if (!diceRAF) diceRAF = requestAnimationFrame(diceLoop); }
 window.addEventListener("resize", diceResize);
+// ResizeObserver: стол меняет размер ПОСЛЕ загрузки (Telegram tg.expand на весь экран, рефлоу) —
+// битмап канваса надо пересчитывать на КАЖДОЕ изменение, иначе он растягивается (кубы раздуты/съехали)
+if (window.ResizeObserver) new ResizeObserver(() => diceResize()).observe(diceCanvas);
 document.body.classList.toggle("engA", DICE_CANVAS);
 // первый замер/отрисовка после раскладки; затем ПЕРЕбэйк текстур после готовности шрифтов
 // (ранний глиф эмодзи бывает пустым — страховка от бага v21.4; первый бросок и так много позже)
