@@ -903,6 +903,7 @@
     <button id="devDay">next day ⏭</button>
     <button id="devGfx">GFX: HIGH</button>
     <button id="devEngine">engine: A</button>
+    <button id="devDiceDbg">dice dbg</button>
     <button id="devSpeed">⏩ x2: OFF</button>
     <button id="devEmoji">test 🎲 canvas</button>
     <button id="devWipe">wipe save ⟲</button>
@@ -1139,7 +1140,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.1 · 2026-06-20 · canvas dice";
+const BUILD = "Hoshikuzu v22.2 · 2026-06-20 · canvas dice";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1613,6 +1614,7 @@ function boardFlash() {
    Честная 3D-проекция куба; фон грани и символы — пред-рендеренные текстуры (drawImage, без
    покадрового реростера глифа). .die остаётся невидимым ЯКОРЕМ позиции для VFX. За dev-тогглом. ═══ */
 let DICE_CANVAS = true;
+let DICE_DBG = false; // dev-диагностика: рамка+размеры+кресты-якоря на канвасе
 const diceCanvas = document.getElementById("diceCanvas");
 const dctx = diceCanvas.getContext("2d");
 let dcDpr = 1, dcW = 0, dcH = 0;
@@ -1663,9 +1665,11 @@ function kf(t, stops) {
 }
 function diceResize() {
   const r = diceCanvas.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return; // скрытый/неготовый бокс — НЕ зануляем битмап (иначе кости пропадают)
   dcW = r.width; dcH = r.height;
   dcDpr = Math.min(2, window.devicePixelRatio || 1);
-  diceCanvas.width = Math.round(dcW * dcDpr); diceCanvas.height = Math.round(dcH * dcDpr);
+  const bw = Math.round(dcW * dcDpr), bh = Math.round(dcH * dcDpr);
+  if (diceCanvas.width !== bw || diceCanvas.height !== bh) { diceCanvas.width = bw; diceCanvas.height = bh; }
   for (const rl of reels) {
     rl.baseCx = rl.el.offsetLeft - diceCanvas.offsetLeft + rl.el.clientWidth / 2;
     rl.baseCy = rl.el.offsetTop - diceCanvas.offsetTop + rl.el.clientHeight / 2;
@@ -1731,6 +1735,16 @@ function diceDrawAll() {
   dctx.setTransform(1, 0, 0, 1, 0, 0);
   dctx.clearRect(0, 0, diceCanvas.width, diceCanvas.height);
   dctx.scale(dcDpr, dcDpr);
+  if (DICE_DBG) {
+    dctx.fillStyle = "rgba(255,0,255,.12)"; dctx.fillRect(0, 0, dcW, dcH);
+    dctx.strokeStyle = "#f0f"; dctx.lineWidth = 2; dctx.strokeRect(1, 1, dcW - 2, dcH - 2);
+    dctx.fillStyle = "#0f0"; dctx.font = "11px monospace";
+    dctx.fillText(`css ${Math.round(dcW)}x${Math.round(dcH)} buf ${diceCanvas.width}x${diceCanvas.height} dpr ${dcDpr}`, 6, 14);
+    for (const rl of reels) {
+      dctx.fillStyle = "#0ff"; dctx.beginPath(); dctx.arc(rl.baseCx, rl.baseCy, 4, 0, 6.283); dctx.fill();
+      dctx.fillText(`${Math.round(rl.baseCx)},${Math.round(rl.baseCy)}`, rl.baseCx + 6, rl.baseCy + 3);
+    }
+  }
   for (const rl of reels) drawDie(rl);
 }
 let diceRAF = null;
@@ -1739,11 +1753,14 @@ function diceLoop() {
   diceRAF = reels.some(rl => rl.anim) ? requestAnimationFrame(diceLoop) : null; // стоп в покое (последний кадр держится)
 }
 function diceStart() { if (!diceRAF) diceRAF = requestAnimationFrame(diceLoop); }
-window.addEventListener("resize", diceResize);
-// ResizeObserver: стол меняет размер ПОСЛЕ загрузки (Telegram tg.expand на весь экран, рефлоу) —
-// битмап канваса надо пересчитывать на КАЖДОЕ изменение, иначе он растягивается (кубы раздуты/съехали)
-if (window.ResizeObserver) new ResizeObserver(() => diceResize()).observe(diceCanvas);
+// engA ставим ПЕРВЫМ — иначе канвас ещё display:none и замер даёт 0 (кости пропадают)
 document.body.classList.toggle("engA", DICE_CANVAS);
+window.addEventListener("resize", diceResize);
+// стол меняет размер ПОСЛЕ загрузки (Telegram tg.expand на весь экран, рефлоу) — пересчитываем
+// битмап на каждое изменение, иначе он растягивается/съезжает. Несколько независимых триггеров:
+if (window.ResizeObserver) new ResizeObserver(() => diceResize()).observe(diceCanvas);
+if (typeof tg !== "undefined" && tg && tg.onEvent) tg.onEvent("viewportChanged", () => diceResize());
+[100, 400, 1000].forEach(ms => setTimeout(diceResize, ms)); // подстраховка на разворот вьюпорта
 // первый замер/отрисовка после раскладки; затем ПЕРЕбэйк текстур после готовности шрифтов
 // (ранний глиф эмодзи бывает пустым — страховка от бага v21.4; первый бросок и так много позже)
 function diceInit() {
@@ -3765,6 +3782,8 @@ document.getElementById("devEngine").addEventListener("click", e => {
   e.target.textContent = "engine: " + (DICE_CANVAS ? "A" : "CSS");
   if (DICE_CANVAS) diceResize(); else diceDrawAll(); // A: перерисовать покой; CSS: очистить канвас
 });
+// dev «dice dbg»: пурпурная рамка + размеры (css/buffer/dpr) + кресты-якоря — диагностика канваса костей
+document.getElementById("devDiceDbg").addEventListener("click", () => { DICE_DBG = !DICE_DBG; diceDrawAll(); });
 // dev «⏩ x2»: глобальный тоггл удвоения скорости броска (см. DEV_SPEED2X в doSpin)
 document.getElementById("devSpeed").addEventListener("click", e => {
   DEV_SPEED2X = !DEV_SPEED2X;
