@@ -210,13 +210,7 @@
   .face.f-top    { transform: rotateX( 90deg) translateZ(30px); }
   .face.f-bottom { transform: rotateX(-90deg) translateZ(30px); }
   /* кольцо пыли при приземлении */
-  .landring {
-    position: fixed; z-index: 8; pointer-events: none; border-radius: 50%;
-    width: 18px; height: 18px; margin: -9px 0 0 -9px;
-    border: 2px solid rgba(255,224,150,.6);
-    animation: landring .42s ease-out forwards;
-  }
-  @keyframes landring { 0%{transform:scale(.5); opacity:.75} 100%{transform:scale(3.6); opacity:0} }
+  /* .landring → перенесён в канвас-пул #vfx (type "ring", v22.5) — DOM-версия удалена */
   /* бит выигрыша: кость подпрыгивает-светится — на .scene (чтобы не перебить позицию .die) */
   .die.hit .scene { animation: diepop .6s cubic-bezier(.2,1.4,.4,1); }
   @keyframes diepop {
@@ -743,26 +737,9 @@
     border: 2px solid #ffd34d; text-align: center; gap: 14px;
     animation: jpglow .7s ease-in-out infinite;
   }
-  /* изобильный фон бонуса: дождь монет/блёсток позади окна */
-  #jpVfx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
-  /* v21.3: дождь из дешёвых CSS-фигур вместо эмодзи (цветной растр эмодзи давил GPU).
-     .jpcoin — золотой кружок (радиальный градиент), .jpconf — цветной лоскут-конфетти.
-     Оба падают одной keyframes jpfall (только transform/opacity — композит на GPU). */
-  .jpcoin, .jpconf {
-    position: absolute; top: -10vh; will-change: transform, opacity;
-    animation: jpfall linear forwards;
-  }
-  .jpcoin {
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #fff3b0, #ffd34d 46%, #d99a14 100%);
-    box-shadow: inset 0 0 0 1px rgba(150,95,0,.45);
-  }
-  .jpconf { border-radius: 2px; }
-  @keyframes jpfall {
-    0%   { transform: translateY(-10vh) rotate(0); opacity: 0; }
-    12%  { opacity: 1; }
-    100% { transform: translateY(112vh) rotate(var(--r, 360deg)); opacity: .85; }
-  }
+  /* изобильный фон бонуса: дождь монет/блёсток позади окна. v22.5: КАНВАС (jpVfx — <canvas>),
+     размер задаёт JS (replaced-элемент: inset не растягивает). Частицы рисует jpLoop. */
+  #jpVfx { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 1; }
   @keyframes jpglow {
     0%,100% { box-shadow: 0 0 26px #ffd34d; }
     50% { box-shadow: 0 0 60px #ffd34d, 0 0 110px rgba(255,211,77,.6); }
@@ -998,7 +975,7 @@
 </div>
 
 <div class="overlay" id="bonusOverlay">
-  <div id="jpVfx"></div>
+  <canvas id="jpVfx"></canvas><!-- бонус-VFX на канвасе (v22.5): монеты+конфетти, замена DOM-storm -->
   <div class="sheet jpsheet">
     <div class="jptitle">💎 GRAND BONUS! 💎</div>
     <div class="jpdesc" id="jpDesc">—</div>
@@ -1142,7 +1119,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.4 · 2026-06-20 · canvas dice";
+const BUILD = "Hoshikuzu v22.5 · 2026-06-20 · canvas vfx";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1595,15 +1572,11 @@ function boardBump() {
   const tf = document.getElementById("tableFx");
   if (tf) { tf.style.setProperty("--tfd", "1500ms"); tf.classList.remove("flash"); void tf.offsetWidth; tf.classList.add("flash"); }
 }
-// кольцо пыли в точке приземления кости
+// кольцо пыли в точке приземления кости (v22.5: канвас-пул #vfx вместо DOM-элемента)
 function landRing(el) {
   const b = el.getBoundingClientRect();
-  const ring = document.createElement("div");
-  ring.className = "landring";
-  ring.style.left = (b.left + b.width / 2) + "px";
-  ring.style.top = (b.top + b.height * 0.72) + "px";
-  document.getElementById("fxUnder").appendChild(ring);
-  setTimeout(() => ring.remove(), 440);
+  pushPart({ type: "ring", x: b.left + b.width / 2, y: b.top + b.height * 0.72,
+    size: 9, color: "rgba(255,224,150,.6)", lw: 2, dur: 420 });
 }
 // короткая вспышка стола на приземление кости (v20.8): своя на каждый куб → 3 каскадом
 function boardFlash() {
@@ -1963,6 +1936,9 @@ function vfxLoop(now) {
       // v21.2 ПЕРФ: убран shadowBlur на цифрах (canvas shadow-blur — дорогой пофреймовый проход); обводка держит читаемость
       vctx.fillStyle = p.color; vctx.fillText(s, 0, 0);
       vctx.restore();
+    } else if (p.type === "ring") {
+      vctx.strokeStyle = p.color; vctx.lineWidth = p.lw || 2; // кольцо пыли приземления (бывш. DOM .landring)
+      vctx.beginPath(); vctx.arc(p.x, p.y, p.size * (0.5 + k * 3.1), 0, 6.283); vctx.stroke();
     }
   }
   vctx.globalAlpha = 1;
@@ -3381,43 +3357,80 @@ function bonusAttention() {        // мигание (CSS) + вибрация + 
   vibrate([0, 300, 150, 300, 150, 500]);
   confetti(); confetti();
 }
-// изобильный фон: пока окно открыто — дождь монет/блёсток + периодические конфетти
+// изобильный фон бонуса (v22.5): монеты+конфетти на КАНВАСЕ (jpVfx) вместо DOM-storm —
+// раньше сотни DOM-<span> с CSS-анимацией роняли FPS даже на флагмане. Свой пул/цикл, т.к.
+// слой бонуса (z100) выше общего #vfx (z60) — общий пул не подходит по z-порядку.
 const jpVfx = document.getElementById("jpVfx");
+const jpCtx = jpVfx.getContext("2d");
 const JP_CONF_HUES = [48, 0, 200, 280, 130, 330]; // тёплые/радужные лоскуты конфетти
-let jpVfxTimer = null, jpVfxTick = 0;
+let jpVfxTimer = null, jpVfxTick = 0, jpParts = [], jpRAF = null, jpLast = 0, jpW = 0, jpH = 0;
+let _coinTex = null;
+function coinTex() { // золотая монета (радиальный градиент) — пред-рендер ОДИН раз, дальше drawImage
+  if (_coinTex) return _coinTex;
+  const S = 32, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d");
+  const g = x.createRadialGradient(S * .35, S * .30, 1, S / 2, S / 2, S / 2);
+  g.addColorStop(0, "#fff3b0"); g.addColorStop(.46, "#ffd34d"); g.addColorStop(1, "#d99a14");
+  x.fillStyle = g; x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 1, 0, 6.283); x.fill();
+  x.lineWidth = 1; x.strokeStyle = "rgba(150,95,0,.45)"; x.stroke();
+  _coinTex = c; return c;
+}
+function jpResize() { // канвас = вьюпорт (оверлей z100 на весь экран); ЯВНЫЙ размер (replaced-элемент)
+  jpW = window.innerWidth; jpH = window.innerHeight;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  jpVfx.style.width = jpW + "px"; jpVfx.style.height = jpH + "px";
+  jpVfx.width = Math.round(jpW * dpr); jpVfx.height = Math.round(jpH * dpr);
+  jpCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", () => { if (jpVfxTimer) jpResize(); });
+function jpPush(p) {
+  p.life = 0; jpParts.push(p);
+  if (jpParts.length > 400) jpParts.shift();
+  if (!jpRAF) { jpLast = 0; jpRAF = requestAnimationFrame(jpLoop); }
+}
+function jpLoop(now) {
+  const dt = jpLast ? Math.min(50, now - jpLast) : 16; jpLast = now;
+  jpCtx.clearRect(0, 0, jpW, jpH);
+  for (let i = jpParts.length - 1; i >= 0; i--) {
+    const p = jpParts[i]; p.life += dt; const k = p.life / p.dur;
+    if (k >= 1) { jpParts.splice(i, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+    jpCtx.globalAlpha = k < .12 ? k / .12 : 1; // плавный fade-in (как CSS jpfall)
+    jpCtx.save(); jpCtx.translate(p.x, p.y); jpCtx.rotate(p.rot);
+    if (p.coin) jpCtx.drawImage(coinTex(), -p.s, -p.s, p.s * 2, p.s * 2);
+    else { jpCtx.fillStyle = p.color; jpCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); }
+    jpCtx.restore();
+  }
+  jpCtx.globalAlpha = 1;
+  jpRAF = jpParts.length ? requestAnimationFrame(jpLoop) : (jpLast = 0, null);
+}
+function bonusSpawn(n) { // n частиц сверху, линейное падение (как было), монета/лоскут 50/50
+  for (let i = 0; i < n; i++) {
+    const dur = 1500 + Math.random() * 1800;
+    const x = Math.random() * jpW, y = -(20 + Math.random() * 60);
+    const vy = (jpH + 120) / dur, vx = Math.random() * .06 - .03;
+    const vr = ((Math.random() * 720 - 360) * Math.PI / 180) / dur;
+    if (Math.random() < .5) jpPush({ coin: true, x, y, s: 6 + Math.random() * 9, vx, vy, vr, rot: Math.random() * 6, dur });
+    else {
+      const w = 6 + Math.random() * 6;
+      jpPush({ coin: false, x, y, w, h: w * 1.7, vx, vy, vr, rot: Math.random() * 6, dur,
+        color: `hsl(${JP_CONF_HUES[(Math.random() * JP_CONF_HUES.length) | 0]},90%,${(56 + Math.random() * 14) | 0}%)` });
+    }
+  }
+}
 function bonusVFXStart() {
-  jpVfx.innerHTML = ""; jpVfxTick = 0;
-  bonusSpawn(GFX_LOW ? 9 : 16);           // сразу плотный залп
+  jpResize(); jpParts.length = 0; jpVfxTick = 0;
+  bonusSpawn(GFX_LOW ? 9 : 16);             // сразу плотный залп
   jpVfxTimer = setInterval(() => {
     bonusSpawn(GFX_LOW ? 2 : 4);
-    if (++jpVfxTick % 3 === 0) confetti();  // волны искр ~каждые 0.6с
+    if (++jpVfxTick % 3 === 0) bonusSpawn(GFX_LOW ? 3 : 6); // доп. волна (бывш. confetti — был под окном на #vfx)
   }, 200);
-}
-// v21.3: дешёвые CSS-фигуры (монета-градиент / цветной лоскут) вместо эмодзи
-function bonusSpawn(n) {
-  for (let i = 0; i < n; i++) {
-    const d = document.createElement("span");
-    const coin = Math.random() < .5;
-    if (coin) {
-      d.className = "jpcoin";
-      const s = (12 + Math.random() * 18) | 0; d.style.width = d.style.height = s + "px";
-    } else {
-      d.className = "jpconf";
-      const w = (6 + Math.random() * 6) | 0;
-      d.style.width = w + "px"; d.style.height = (w * 1.7) + "px";
-      d.style.background = `hsl(${JP_CONF_HUES[(Math.random() * JP_CONF_HUES.length) | 0]},90%,${56 + Math.random() * 14}%)`;
-    }
-    d.style.left = (Math.random() * 100) + "%";
-    const dur = 1.5 + Math.random() * 1.8;
-    d.style.animationDuration = dur + "s";
-    d.style.setProperty("--r", (Math.random() * 720 - 360) + "deg");
-    jpVfx.appendChild(d);
-    setTimeout(() => d.remove(), dur * 1000 + 120);
-  }
 }
 function bonusVFXStop() {
   clearInterval(jpVfxTimer); jpVfxTimer = null;
-  jpVfx.innerHTML = "";
+  jpParts.length = 0;
+  if (jpRAF) { cancelAnimationFrame(jpRAF); jpRAF = null; }
+  jpCtx.clearRect(0, 0, jpW, jpH);
 }
 // убывающий таймер-бар окна: ширина 100→0% за BONUS_MS + число секунд («успей забрать»)
 let jpCountRAF = null;
