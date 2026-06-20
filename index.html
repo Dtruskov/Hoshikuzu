@@ -146,6 +146,11 @@
      (прыжок/падение/сквош) > .scene (перспектива) > .cube (спин В ВОЗДУХЕ, центр-пивот)
      > 6×.face. Грани без скругления. При приземлении грани НЕ крутятся — только верт. отскок ── */
   .die { width: 60px; height: 60px; flex: none; position: relative; will-change: transform; z-index: 2; } /* над #tableFx */
+  /* движок A (v22): один canvas рисует все 3 кости; .die остаётся невидимым якорем позиции для VFX.
+     inset выходит за #board вверх (-120) — кости подлетают над столом; pointer-events:none */
+  #diceCanvas { position: absolute; inset: -120px 0 -20px 0; z-index: 2; pointer-events: none; display: none; }
+  body.engA #diceCanvas { display: block; }
+  body.engA .scene, body.engA .shadow { display: none; } /* в режиме A DOM-куб/тень не рисуем */
   .shadow {
     position: absolute; left: 50%; top: 74%; width: 58px; height: 20px; z-index: 0;
     transform: translate(-50%, -50%); border-radius: 50%; opacity: .42;
@@ -858,6 +863,7 @@
         <div class="die"></div>
         <div class="die"></div>
         <div class="die"></div>
+        <canvas id="diceCanvas"></canvas><!-- движок A: рисует кости поверх .die-якорей (v22) -->
       </div>
       <div id="winline"><span id="winTxt"></span></div>
       <button id="throwBtn"><span>🎲 THROW DICE</span></button>
@@ -896,6 +902,7 @@
     <button id="devTrack">+ Track XP</button>
     <button id="devDay">next day ⏭</button>
     <button id="devGfx">GFX: HIGH</button>
+    <button id="devEngine">engine: A</button>
     <button id="devSpeed">⏩ x2: OFF</button>
     <button id="devEmoji">test 🎲 canvas</button>
     <button id="devWipe">wipe save ⟲</button>
@@ -1132,7 +1139,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v21.4.2 · 2026-06-19 · perf";
+const BUILD = "Hoshikuzu v22 · 2026-06-20 · canvas dice";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1565,7 +1572,9 @@ const reels = [...document.querySelectorAll(".die")].map((el, idx) => {
   const yaw0 = Math.random() * 50 - 25, jx0 = Math.random() * 60 - 30, jy0 = Math.random() * 34 - 17;
   el.style.transform = `translate(${jx0}px, ${jy0}px)`;
   cube.style.transform = `rotateZ(${yaw0}deg) rotateX(0deg) rotateY(0deg)`;
-  return { el, lift, scene, shadow, cube, faces, idx, rx: 0, ry: 0, rz: yaw0, landed: SYMS[0] };
+  return { el, lift, scene, shadow, cube, faces, idx, rx: 0, ry: 0, rz: yaw0, landed: SYMS[0],
+    // v22 движок A: символы 6 граней (front=0 → результат), текущий офсет покоя, якоря-центры в canvas
+    faceSyms: FILLERS.map(s => s.emoji), ox: jx0, oy: jy0, baseCx: 0, baseCy: 0, anim: null };
 });
 // угол ≡0 (mod 360 → передняя грань вверх) в направлении dir (±1), ~turns оборотов от cur.
 // dir рандомен per-axis/per-throw → кубики вращаются в РАЗНЫЕ стороны (запрос автора)
@@ -1600,6 +1609,147 @@ function boardFlash() {
   document.getElementById("board").appendChild(f);
   setTimeout(() => f.remove(), 210);
 }
+/* ═══════════ ДВИЖОК A — кости на одном <canvas> (v22), замена CSS preserve-3d (18 DOM-слоёв → 0).
+   Честная 3D-проекция куба; фон грани и символы — пред-рендеренные текстуры (drawImage, без
+   покадрового реростера глифа). .die остаётся невидимым ЯКОРЕМ позиции для VFX. За dev-тогглом. ═══ */
+let DICE_CANVAS = true;
+const diceCanvas = document.getElementById("diceCanvas");
+const dctx = diceCanvas.getContext("2d");
+let dcDpr = 1, dcW = 0, dcH = 0;
+// текстуры рисуются ОДИН раз ЛЕНИВО (первый бросок — много позже загрузки → шрифт эмодзи «тёплый»,
+// глиф не пустой; v21.4 падал именно из-за раннего запекания, см. диагностику v21.4.2)
+let _faceTex = null;
+function faceTex() {
+  if (_faceTex) return _faceTex;
+  const S = 96, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, S, S);
+  g.addColorStop(0, "#fffdf5"); g.addColorStop(.55, "#efe7cf"); g.addColorStop(1, "#d3c7a6");
+  x.fillStyle = g; x.fillRect(0, 0, S, S);
+  x.lineWidth = 4; x.strokeStyle = "rgba(150,128,80,.5)"; x.strokeRect(2, 2, S - 4, S - 4);
+  _faceTex = c; return c;
+}
+const _symTex = new Map();
+function symTex(emoji) {
+  let c = _symTex.get(emoji); if (c) return c;
+  const S = 72; c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d");
+  x.font = "54px system-ui,'Apple Color Emoji','Segoe UI Emoji',sans-serif";
+  x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(emoji, S / 2, S / 2 + 3);
+  _symTex.set(emoji, c); return c;
+}
+// easing = та же кривая cubic-bezier(.35,.45,.65,.55), что у CSS-броска
+const EASE = (() => {
+  const p1x = .35, p1y = .45, p2x = .65, p2y = .55;
+  const cx = 3 * p1x, bx = 3 * (p2x - p1x) - cx, ax = 1 - cx - bx;
+  const cy = 3 * p1y, by = 3 * (p2y - p1y) - cy, ay = 1 - cy - by;
+  const fx = t => ((ax * t + bx) * t + cx) * t, fy = t => ((ay * t + by) * t + cy) * t;
+  return x => { let t = x; for (let i = 0; i < 5; i++) { const e = fx(t) - x, d = (3 * ax * t + 2 * bx) * t + cx; if (Math.abs(e) < 1e-4 || Math.abs(d) < 1e-6) break; t -= e / d; } return fy(t); };
+})();
+// порт @keyframes diceThrow / shadowThrow (значения 1-в-1; межкадрово — EASE)
+const KF_LIFT = [[0, { ty: 2, sx: 1.1, sy: .85 }], [.05, { ty: -90, sx: 1.28, sy: 1.28 }], [.38, { ty: -104, sx: 1.3, sy: 1.3 }], [.68, { ty: -28, sx: 1.12, sy: 1.12 }], [.75, { ty: 0, sx: 1.2, sy: .68 }], [.84, { ty: -30, sx: .93, sy: 1.1 }], [.91, { ty: 0, sx: 1.1, sy: .9 }], [.96, { ty: -11, sx: 1, sy: 1 }], [1, { ty: 0, sx: 1, sy: 1 }]];
+const KF_SHADOW = [[0, { s: 1, o: .42 }], [.05, { s: 1.28, o: .3 }], [.38, { s: 1.3, o: .28 }], [.68, { s: 1.12, o: .4 }], [.75, { s: 1.5, o: .62 }], [.82, { s: 1.05, o: .42 }], [1, { s: 1, o: .42 }]];
+function kf(t, stops) {
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (t <= stops[i + 1][0] || i === stops.length - 2) {
+      const f0 = stops[i][0], f1 = stops[i + 1][0];
+      const e = EASE(Math.max(0, Math.min(1, (t - f0) / (f1 - f0 || 1))));
+      const v0 = stops[i][1], v1 = stops[i + 1][1], o = {};
+      for (const k in v0) o[k] = v0[k] + (v1[k] - v0[k]) * e;
+      return o;
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+function diceResize() {
+  const r = diceCanvas.getBoundingClientRect();
+  dcW = r.width; dcH = r.height;
+  dcDpr = Math.min(2, window.devicePixelRatio || 1);
+  diceCanvas.width = Math.round(dcW * dcDpr); diceCanvas.height = Math.round(dcH * dcDpr);
+  for (const rl of reels) {
+    rl.baseCx = rl.el.offsetLeft - diceCanvas.offsetLeft + rl.el.clientWidth / 2;
+    rl.baseCy = rl.el.offsetTop - diceCanvas.offsetTop + rl.el.clientHeight / 2;
+  }
+  if (DICE_CANVAS) diceDrawAll();
+}
+// куб: 8 вершин (±1) и 6 граней [TL,TR,BR,BL, нормаль, индекс символа]; нормаль → backface-cull
+const CUBE_V = [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]];
+const CUBE_F = [[4, 5, 6, 7, [0, 0, 1], 0], [1, 0, 3, 2, [0, 0, -1], 1], [5, 1, 2, 6, [1, 0, 0], 2], [0, 4, 7, 3, [-1, 0, 0], 3], [0, 1, 5, 4, [0, -1, 0], 4], [7, 6, 2, 3, [0, 1, 0], 5]];
+function rot3(p, rx, ry, rz) {
+  let x = p[0], y = p[1], z = p[2], c, s;
+  c = Math.cos(rz); s = Math.sin(rz); [x, y] = [x * c - y * s, x * s + y * c];
+  c = Math.cos(rx); s = Math.sin(rx); [y, z] = [y * c - z * s, y * s + z * c];
+  c = Math.cos(ry); s = Math.sin(ry); [x, z] = [x * c + z * s, -x * s + z * c];
+  return [x, y, z];
+}
+// fake-3D куб с центром (cx,cy), полуребро h, углы (рад), пост-скейл сквоша sclX/sclY, символы граней
+function drawCube(cx, cy, h, rx, ry, rz, sclX, sclY, faceSyms) {
+  const D = 380; // та же перспектива, что CSS perspective:380px
+  const proj = CUBE_V.map(v => {
+    const p = rot3([v[0] * h, v[1] * h, v[2] * h], rx, ry, rz);
+    const sc = D / (D - p[2]);
+    return [cx + p[0] * sc * sclX, cy + p[1] * sc * sclY, p[2]];
+  });
+  const ft = faceTex();
+  for (const f of CUBE_F) {
+    const n = rot3(f[4], rx, ry, rz);
+    if (n[2] <= 0.02) continue; // грань смотрит от камеры → пропуск (видно ровно 3)
+    const A = proj[f[0]], B = proj[f[1]], Dd = proj[f[3]];
+    // аффинно: локальный квадрат [-h,h]² → экранные A(TL) B(TR) Dd(BL) (4-й угол — лёгкий фейк)
+    const m11 = (B[0] - A[0]) / (2 * h), m12 = (B[1] - A[1]) / (2 * h);
+    const m21 = (Dd[0] - A[0]) / (2 * h), m22 = (Dd[1] - A[1]) / (2 * h);
+    dctx.save();
+    dctx.transform(m11, m12, m21, m22, A[0] + (m11 + m21) * h, A[1] + (m12 + m22) * h);
+    dctx.drawImage(ft, -h, -h, 2 * h, 2 * h);
+    const sym = faceSyms[f[5]];
+    if (sym) dctx.drawImage(symTex(sym), -h * .58, -h * .58, h * 1.16, h * 1.16);
+    dctx.restore();
+  }
+}
+function drawDie(rl) {
+  const a = rl.anim;
+  let ox, oy, jy = 0, sx = 1, sy = 1, rx = rl.rx, ry = rl.ry, rz = rl.rz, shS = 1, shO = .42;
+  if (a) {
+    const t = Math.max(0, Math.min(1, (performance.now() - a.t0) / a.dur));
+    const tp = EASE(Math.min(1, t / .74)); // позиция доезжает за ~74% (как CSS-переход .die)
+    ox = a.fromOx + (a.toOx - a.fromOx) * tp;
+    oy = a.fromOy + (a.toOy - a.fromOy) * tp;
+    const ts = EASE(Math.min(1, t / a.spinFrac)); // спин кончается ДО касания (грани не крутятся на отскоке)
+    rx = a.fromRx + (a.toRx - a.fromRx) * ts;
+    ry = a.fromRy + (a.toRy - a.fromRy) * ts;
+    rz = a.fromRz + (a.toRz - a.fromRz) * ts;
+    const L = kf(t, KF_LIFT); jy = L.ty; sx = L.sx; sy = L.sy;
+    const Sh = kf(t, KF_SHADOW); shS = Sh.s; shO = Sh.o;
+  } else { ox = rl.ox; oy = rl.oy; }
+  const cx = rl.baseCx + ox, gy = rl.baseCy + oy;
+  dctx.globalAlpha = shO; dctx.fillStyle = "#000"; // тень на «столе» (не прыгает вместе с костью)
+  dctx.beginPath(); dctx.ellipse(cx, gy + 22, 26 * shS, 9 * shS, 0, 0, 6.283); dctx.fill();
+  dctx.globalAlpha = 1;
+  drawCube(cx, gy + jy, 30, rx * Math.PI / 180, ry * Math.PI / 180, rz * Math.PI / 180, sx, sy, rl.faceSyms);
+}
+function diceDrawAll() {
+  dctx.setTransform(1, 0, 0, 1, 0, 0);
+  dctx.clearRect(0, 0, diceCanvas.width, diceCanvas.height);
+  dctx.scale(dcDpr, dcDpr);
+  for (const rl of reels) drawDie(rl);
+}
+let diceRAF = null;
+function diceLoop() {
+  diceDrawAll();
+  diceRAF = reels.some(rl => rl.anim) ? requestAnimationFrame(diceLoop) : null; // стоп в покое (последний кадр держится)
+}
+function diceStart() { if (!diceRAF) diceRAF = requestAnimationFrame(diceLoop); }
+window.addEventListener("resize", diceResize);
+document.body.classList.toggle("engA", DICE_CANVAS);
+// первый замер/отрисовка после раскладки; затем ПЕРЕбэйк текстур после готовности шрифтов
+// (ранний глиф эмодзи бывает пустым — страховка от бага v21.4; первый бросок и так много позже)
+function diceInit() {
+  diceResize();
+  if (document.fonts && document.fonts.ready)
+    document.fonts.ready.then(() => { _symTex.clear(); _faceTex = null; if (DICE_CANVAS) diceResize(); });
+}
+requestAnimationFrame(diceInit);
+
 // бросок кости (v20.2 «кинули на стол»): результат на ПЕРЕДНЕЙ грани (вид сверху → «вверх»).
 // Кость ПОДЛЕТАЕТ и быстро крутится В ВОЗДУХЕ (центр-пивот), затем ПАДАЕТ с импактом и
 // подскакивает ВЕРТИКАЛЬНО (без перекатов, грани не переворачиваются — спин куба завершается
@@ -1608,6 +1758,7 @@ function spinReel(r, target, idx, durMul, heat, zone) {
   if (zone == null) zone = idx;
   return new Promise(resolve => {
     r.landed = target; // ЛОГИЧЕСКИЙ результат сразу; ВИЗУАЛЬНАЯ подмена грани — позже, в полёте (см. ниже)
+    const fromRx = r.rx, fromRy = r.ry, fromRz = r.rz, fromOx = r.ox, fromOy = r.oy; // старт-углы/офсет для движка A
     // быстрый многоосевой спин в воздухе: 4–6 оборотов (рандом) в РАЗНЫЕ стороны, кончается передней гранью вверх
     r.rx = spinTarget(r.rx, (GFX_LOW ? 2 : 4) + ((Math.random() * 3) | 0), rdir()); // 4..6 оборотов, рандомное направление
     r.ry = spinTarget(r.ry, (GFX_LOW ? 1 : 2) + ((Math.random() * 2) | 0), rdir()); // многоосевой хаос
@@ -1627,33 +1778,48 @@ function spinReel(r, target, idx, durMul, heat, zone) {
     const delay = idx * 130;
     // ВИЗУАЛЬНАЯ подмена грани на результат — когда кость уже в воздухе и крутится/размыта (v20.7),
     // чтобы игрок не видел, как грань «перещёлкивается» в самом начале броска
-    setTimeout(() => { r.faces[0].querySelector(".sym").textContent = target.emoji; }, delay + 160);
     setTimeout(() => {
-      // ПОЗИЦИЯ доезжает в «точку падения» ЗА ВРЕМЯ ВОЗДУХА (~74%), НЕ за весь ролл — иначе кость
-      // «ползёт по столу» после остановки. Колоколообразно (ease-in-out: медленно-быстро-медленно)
-      r.el.style.transition = `transform ${dur * 0.74}ms cubic-bezier(.35,.45,.65,.55)`;
-      r.el.style.transform = `translate(${jx}px, ${jy}px)`;
-      // спин куба завершается ДО касания (~72%) → при отскоке грани не крутятся; EaseInOutQuart (как скейл)
-      r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.35,.45,.65,.55)`;
-      void r.cube.offsetWidth;
-      r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
-      // ПРЫЖОК+скейл+тень — на ВСЕХ устройствах (дёшево, чистый transform-композит; блёр снят в v21.3)
-      r.lift.style.setProperty("--td", dur + "ms");
-      r.lift.classList.remove("throw"); void r.lift.offsetWidth;
-      r.lift.classList.add("throw");
-      r.shadow.style.setProperty("--td", dur + "ms");
-      r.shadow.classList.remove("throw"); void r.shadow.offsetWidth; r.shadow.classList.add("throw");
-      if (heat) r.el.classList.add("heat");
-      // ИМПАКТ приземления (~75% прыжка): звук кости о доску + вибро + кольцо пыли + вспышка
+      if (DICE_CANVAS) r.faceSyms[0] = target.emoji;             // движок A: подмена символа передней грани
+      else r.faces[0].querySelector(".sym").textContent = target.emoji;
+    }, delay + 160);
+    setTimeout(() => {
+      if (DICE_CANVAS) {
+        // ── движок A: визуал считает canvas-цикл; .die мгновенно встаёт в точку падения как ЯКОРЬ для VFX
+        r.el.style.transition = "none";
+        r.el.style.transform = `translate(${jx}px, ${jy}px)`;
+        r.anim = {
+          t0: performance.now(), dur, spinFrac: spinDur / dur,
+          fromOx, fromOy, toOx: jx, toOy: jy,
+          fromRx, fromRy, fromRz, toRx: r.rx, toRy: r.ry, toRz: r.rz
+        };
+        diceStart();
+      } else {
+        // ── движок CSS (preserve-3d): позиция за ~74%, спин за ~72%, прыжок+тень кейфреймами
+        r.el.style.transition = `transform ${dur * 0.74}ms cubic-bezier(.35,.45,.65,.55)`;
+        r.el.style.transform = `translate(${jx}px, ${jy}px)`;
+        r.cube.style.transition = `transform ${spinDur}ms cubic-bezier(.35,.45,.65,.55)`;
+        void r.cube.offsetWidth;
+        r.cube.style.transform = `rotateZ(${r.rz}deg) rotateX(${r.rx}deg) rotateY(${r.ry}deg)`;
+        r.lift.style.setProperty("--td", dur + "ms");
+        r.lift.classList.remove("throw"); void r.lift.offsetWidth;
+        r.lift.classList.add("throw");
+        r.shadow.style.setProperty("--td", dur + "ms");
+        r.shadow.classList.remove("throw"); void r.shadow.offsetWidth; r.shadow.classList.add("throw");
+        if (heat) r.el.classList.add("heat");
+      }
+      // ИМПАКТ приземления (~75% прыжка): звук кости о доску + вибро + кольцо пыли + вспышка — ОБЩЕЕ
       setTimeout(() => {
         sDiceLand(); vibrate(heat ? 28 : 20);
         if (!GFX_LOW) { landRing(r.el); boardFlash(); } // своя вспышка стола на КАЖДУЮ кость → 3 каскадом
       }, dur * 0.75);
     }, delay);
     setTimeout(() => {
-      r.el.classList.remove("heat");
-      r.shadow.classList.remove("throw");
-      r.lift.classList.remove("throw");
+      if (DICE_CANVAS) { r.ox = jx; r.oy = jy; r.anim = null; } // покой в новой точке (последний кадр держится)
+      else {
+        r.el.classList.remove("heat");
+        r.shadow.classList.remove("throw");
+        r.lift.classList.remove("throw");
+      }
       if (r.landed && r.landed.wild) r.el.classList.add("wildfx"); // ⚡ выпал на кости → электрорамка «жарит» (v21)
       resolve();
     }, delay + dur);
@@ -3589,6 +3755,13 @@ document.getElementById("devDay").addEventListener("click", () => {
 });
 // v13.6: ручной тоггл тира графики (для теста на устройстве; авто-детект — gfxSample)
 document.getElementById("devGfx").addEventListener("click", () => setGfx(!GFX_LOW));
+// dev «engine»: переключатель движка костей A(canvas)/CSS(preserve-3d) для A/B на устройстве
+document.getElementById("devEngine").addEventListener("click", e => {
+  DICE_CANVAS = !DICE_CANVAS;
+  document.body.classList.toggle("engA", DICE_CANVAS);
+  e.target.textContent = "engine: " + (DICE_CANVAS ? "A" : "CSS");
+  if (DICE_CANVAS) diceResize(); else diceDrawAll(); // A: перерисовать покой; CSS: очистить канвас
+});
 // dev «⏩ x2»: глобальный тоггл удвоения скорости броска (см. DEV_SPEED2X в doSpin)
 document.getElementById("devSpeed").addEventListener("click", e => {
   DEV_SPEED2X = !DEV_SPEED2X;
