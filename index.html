@@ -148,7 +148,9 @@
   .die { width: 60px; height: 60px; flex: none; position: relative; will-change: transform; z-index: 2; } /* над #tableFx */
   /* движок A (v22): один canvas рисует все 3 кости; .die остаётся невидимым якорем позиции для VFX.
      inset выходит за #board вверх (-120) — кости подлетают над столом; pointer-events:none */
-  #diceCanvas { position: absolute; inset: -120px 0 -20px 0; z-index: 2; pointer-events: none; display: none; }
+  /* размеры (width/height) задаёт JS из размера #board: canvas — REPLACED-элемент, пара left+right
+     его НЕ растягивает (берёт внутреннюю ширину битмапа) → раздувался в цикле с ResizeObserver (v22.4) */
+  #diceCanvas { position: absolute; left: 0; top: -120px; z-index: 2; pointer-events: none; display: none; }
   body.engA #diceCanvas { display: block; }
   body.engA .scene, body.engA .shadow { display: none; } /* в режиме A DOM-куб/тень не рисуем */
   .shadow {
@@ -1140,7 +1142,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.3 · 2026-06-20 · canvas dice";
+const BUILD = "Hoshikuzu v22.4 · 2026-06-20 · canvas dice";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1664,12 +1666,16 @@ function kf(t, stops) {
   return stops[stops.length - 1][1];
 }
 function diceResize() {
-  const r = diceCanvas.getBoundingClientRect();
-  if (r.width < 1 || r.height < 1) return; // скрытый/неготовый бокс — НЕ зануляем битмап (иначе кости пропадают)
-  dcW = r.width; dcH = r.height;
+  // мерим #board (НЕ сам канвас — его размер зависит от него же → раздувается в цикле). Канвас =
+  // ширина стола, высота +140 (выход вверх -120 / вниз -20, кости подлетают над столом)
+  const board = document.getElementById("board");
+  const bw = board.clientWidth, bh = board.clientHeight;
+  if (bw < 1 || bh < 1) return; // неготовый бокс — НЕ трогаем (иначе кости пропадают)
   dcDpr = Math.min(2, window.devicePixelRatio || 1);
-  const bw = Math.round(dcW * dcDpr), bh = Math.round(dcH * dcDpr);
-  if (diceCanvas.width !== bw || diceCanvas.height !== bh) { diceCanvas.width = bw; diceCanvas.height = bh; }
+  dcW = bw; dcH = bh + 140;
+  diceCanvas.style.width = dcW + "px"; diceCanvas.style.height = dcH + "px"; // ЯВНЫЙ CSS-размер (replaced)
+  const pw = Math.round(dcW * dcDpr), ph = Math.round(dcH * dcDpr);
+  if (diceCanvas.width !== pw || diceCanvas.height !== ph) { diceCanvas.width = pw; diceCanvas.height = ph; }
   for (const rl of reels) {
     rl.baseCx = rl.el.offsetLeft - diceCanvas.offsetLeft + rl.el.clientWidth / 2;
     rl.baseCy = rl.el.offsetTop - diceCanvas.offsetTop + rl.el.clientHeight / 2;
@@ -1758,7 +1764,7 @@ document.body.classList.toggle("engA", DICE_CANVAS);
 window.addEventListener("resize", diceResize);
 // стол меняет размер ПОСЛЕ загрузки (Telegram tg.expand на весь экран, рефлоу) — пересчитываем
 // битмап на каждое изменение, иначе он растягивается/съезжает. Несколько независимых триггеров:
-if (window.ResizeObserver) new ResizeObserver(() => diceResize()).observe(diceCanvas);
+if (window.ResizeObserver) new ResizeObserver(() => diceResize()).observe(document.getElementById("board")); // наблюдаем СТОЛ, не канвас (иначе петля раздувания)
 if (typeof tg !== "undefined" && tg && tg.onEvent) tg.onEvent("viewportChanged", () => diceResize());
 [100, 400, 1000].forEach(ms => setTimeout(diceResize, ms)); // подстраховка на разворот вьюпорта
 // первый замер/отрисовка после раскладки; затем ПЕРЕбэйк текстур после готовности шрифтов
