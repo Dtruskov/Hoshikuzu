@@ -1140,7 +1140,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.2 · 2026-06-20 · canvas dice";
+const BUILD = "Hoshikuzu v22.3 · 2026-06-20 · canvas dice";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -3782,8 +3782,26 @@ document.getElementById("devEngine").addEventListener("click", e => {
   e.target.textContent = "engine: " + (DICE_CANVAS ? "A" : "CSS");
   if (DICE_CANVAS) diceResize(); else diceDrawAll(); // A: перерисовать покой; CSS: очистить канвас
 });
-// dev «dice dbg»: пурпурная рамка + размеры (css/buffer/dpr) + кресты-якоря — диагностика канваса костей
-document.getElementById("devDiceDbg").addEventListener("click", () => { DICE_DBG = !DICE_DBG; diceDrawAll(); });
+// dev «dice dbg»: (1) форс-заливка всего битмапа красным — тест ВИДИМОСТИ канваса; (2) DOM-плашка
+// с цифрами (работает даже если канвас мёртв). Повторный тап — убрать.
+document.getElementById("devDiceDbg").addEventListener("click", () => {
+  const old = document.getElementById("diceDbgBox");
+  if (old) { old.remove(); diceDrawAll(); return; }
+  dctx.setTransform(1, 0, 0, 1, 0, 0);
+  dctx.fillStyle = "rgba(255,0,0,.4)";
+  dctx.fillRect(0, 0, diceCanvas.width || 1, diceCanvas.height || 1); // весь битмап красным
+  const cs = getComputedStyle(diceCanvas), cr = diceCanvas.getBoundingClientRect();
+  const p = document.createElement("div"); p.id = "diceDbgBox";
+  p.style.cssText = "position:fixed;left:6px;top:64px;z-index:99999;background:#000d;color:#0f0;font:11px monospace;padding:8px;border:1px solid #0f0;white-space:pre;pointer-events:none";
+  p.textContent =
+    "DICE_CANVAS=" + DICE_CANVAS + " engA=" + document.body.classList.contains("engA") + "\n" +
+    "display=" + cs.display + " z=" + cs.zIndex + "\n" +
+    "rect=" + Math.round(cr.x) + "," + Math.round(cr.y) + " " + Math.round(cr.width) + "x" + Math.round(cr.height) + "\n" +
+    "buf=" + diceCanvas.width + "x" + diceCanvas.height + " dcW/H=" + Math.round(dcW) + "x" + Math.round(dcH) + " dpr=" + dcDpr + "\n" +
+    "RAF=" + (!!diceRAF) + "\n" +
+    reels.map((r, i) => "die" + i + " base=" + Math.round(r.baseCx) + "," + Math.round(r.baseCy) + " ox/oy=" + Math.round(r.ox) + "," + Math.round(r.oy)).join("\n");
+  document.body.appendChild(p);
+});
 // dev «⏩ x2»: глобальный тоггл удвоения скорости броска (см. DEV_SPEED2X в doSpin)
 document.getElementById("devSpeed").addEventListener("click", e => {
   DEV_SPEED2X = !DEV_SPEED2X;
