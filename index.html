@@ -308,7 +308,10 @@
   #collBtn { background: linear-gradient(#ff7ab8, #e8458f); color: #fff; }
   /* кнопки-столбцы #meta (перерождение/колесо/Goals/автоспин) — всегда во всю ширину панели:
      на десктопе flex мог их сужать (v19, запрос автора «узкие на десктопе»). Высоты не трогаем */
-  #meta > .btn { align-self: stretch; width: 100%; }
+  /* flex:0 0 auto — иначе flex:1 (flex-basis:0%) даёт Chrome/Android сжать кнопки до
+     min-content (содержимое position:absolute → высота схлопывается, текст обрезается).
+     iOS Safari это терпел, Xiaomi — нет. Явные height (140/58px) теперь уважаются везде */
+  #meta > .btn { align-self: stretch; width: 100%; flex: 0 0 auto; }
   /* ⚠️ ЗАФИКСИРОВАНО — НЕ МЕНЯТЬ без явного запроса автора (feel.md §10, «сейчас идеально»).
      Перерождение/колеса/автоспин = 140px, metaRow/прокачка = 58px (v19.2: под 2 строки —
      Collection «×10» переносится). Постоянно ломались — беречь. */
@@ -516,7 +519,10 @@
      по-прежнему идут в body (поверх своих окон) */
   #fxUnder { position: fixed; inset: 0; pointer-events: none; z-index: 9; }
   /* ═══ канвас-VFX (v21): один слой поверх всего — частицы/цифры/ливень дёшево на GPU ═══ */
-  #vfx { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+  /* translateZ(0): держим канвас на ПОСТОЯННОМ GPU-слое. Между спинами vfxLoop стоит → Chrome
+     мог выгрузить слой полноэкранного канваса, а на выигрыше аллоцировать+залить его заново
+     (текстура ~3 МБ) = рывок ровно «в момент появления частиц» на среднебюджетниках (Xiaomi 11T) */
+  #vfx { position: fixed; inset: 0; pointer-events: none; z-index: 60; transform: translateZ(0); }
   /* экранная вспышка на крупный вин (тир) */
   #screenFlash { position: fixed; inset: 0; pointer-events: none; z-index: 58; opacity: 0; background: radial-gradient(circle at 50% 42%, #fff7e0, #ffd27a 40%, transparent 70%); }
   /* v21.2: forwards → доходит ДО 0 (раньше возвращалось к инлайн-opacity = висел «туман»); тусклее + плавный ~3с спад */
@@ -1162,7 +1168,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.6 · 2026-06-21 · adsgram async";
+const BUILD = "Hoshikuzu v22.7 · 2026-06-21 · android fixes";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1725,19 +1731,45 @@ function drawCube(cx, cy, h, rx, ry, rz, sclX, sclY, faceSyms) {
     return [cx + p[0] * sc * sclX, cy + p[1] * sc * sclY, p[2]];
   });
   const ft = faceTex();
+  // текстура половины грани (треугольник) с перспективно-верным маппингом по 3 экранным углам:
+  // локальные P0..P2 (квадрат [-h,h]²) → экранные Q0..Q2. Грань = 2 таких треугольника по всем
+  // 4 НАСТОЯЩИМ углам → соседние грани делят общие вершины и стыкуются БЕЗ щелей (был аффин
+  // по 3 углам: 4-й «фейк» расходился с соседом → дыры при вращении)
+  function blitTex(Q0, Q1, Q2, P0, P1, P2) {
+    const ux = P1[0] - P0[0], uy = P1[1] - P0[1], vx = P2[0] - P0[0], vy = P2[1] - P0[1];
+    const det = ux * vy - uy * vx; if (!det) return;
+    const Ux = Q1[0] - Q0[0], Uy = Q1[1] - Q0[1], Vx = Q2[0] - Q0[0], Vy = Q2[1] - Q0[1];
+    const a = (Ux * vy - uy * Vx) / det, c = (ux * Vx - Ux * vx) / det;
+    const b = (Uy * vy - uy * Vy) / det, d = (ux * Vy - Uy * vx) / det;
+    dctx.save();
+    dctx.transform(a, b, c, d, Q0[0] - a * P0[0] - c * P0[1], Q0[1] - b * P0[0] - d * P0[1]);
+    // клип-треугольник чуть раздут от центроида (k=1.03) → нет AA-волоска по общей диагонали
+    const gx = (P0[0] + P1[0] + P2[0]) / 3, gy = (P0[1] + P1[1] + P2[1]) / 3, k = 1.03;
+    dctx.beginPath();
+    dctx.moveTo(gx + (P0[0] - gx) * k, gy + (P0[1] - gy) * k);
+    dctx.lineTo(gx + (P1[0] - gx) * k, gy + (P1[1] - gy) * k);
+    dctx.lineTo(gx + (P2[0] - gx) * k, gy + (P2[1] - gy) * k);
+    dctx.closePath(); dctx.clip();
+    dctx.drawImage(ft, -h, -h, 2 * h, 2 * h);
+    dctx.restore();
+  }
+  const TL = [-h, -h], TR = [h, -h], BR = [h, h], BL = [-h, h];
   for (const f of CUBE_F) {
     const n = rot3(f[4], rx, ry, rz);
     if (n[2] <= 0.02) continue; // грань смотрит от камеры → пропуск (видно ровно 3)
-    const A = proj[f[0]], B = proj[f[1]], Dd = proj[f[3]];
-    // аффинно: локальный квадрат [-h,h]² → экранные A(TL) B(TR) Dd(BL) (4-й угол — лёгкий фейк)
-    const m11 = (B[0] - A[0]) / (2 * h), m12 = (B[1] - A[1]) / (2 * h);
-    const m21 = (Dd[0] - A[0]) / (2 * h), m22 = (Dd[1] - A[1]) / (2 * h);
-    dctx.save();
-    dctx.transform(m11, m12, m21, m22, A[0] + (m11 + m21) * h, A[1] + (m12 + m22) * h);
-    dctx.drawImage(ft, -h, -h, 2 * h, 2 * h);
+    const A = proj[f[0]], B = proj[f[1]], C = proj[f[2]], Dd = proj[f[3]];
+    blitTex(A, B, Dd, TL, TR, BL); // треугольник TL-TR-BL
+    blitTex(B, C, Dd, TR, BR, BL); // треугольник TR-BR-BL → вместе вся грань по 4 углам
+    // символ — одним аффином по центру (искажение в центре ≈0; кусочно-аффинный дал бы излом)
     const sym = faceSyms[f[5]];
-    if (sym) dctx.drawImage(symTex(sym), -h * .58, -h * .58, h * 1.16, h * 1.16);
-    dctx.restore();
+    if (sym) {
+      const m11 = (B[0] - A[0]) / (2 * h), m12 = (B[1] - A[1]) / (2 * h);
+      const m21 = (Dd[0] - A[0]) / (2 * h), m22 = (Dd[1] - A[1]) / (2 * h);
+      dctx.save();
+      dctx.transform(m11, m12, m21, m22, A[0] + (m11 + m21) * h, A[1] + (m12 + m22) * h);
+      dctx.drawImage(symTex(sym), -h * .58, -h * .58, h * 1.16, h * 1.16);
+      dctx.restore();
+    }
   }
 }
 function drawDie(rl) {
@@ -1949,7 +1981,7 @@ const vfxCanvas = document.getElementById("vfx");
 const vctx = vfxCanvas.getContext("2d");
 let vfxW = 0, vfxH = 0;
 function vfxResize() {
-  const dpr = Math.min(1.5, window.devicePixelRatio || 1); // v21.3: кап 2→1.5 — искрам чёткость не нужна, полноэкранная заливка кадра дешевле
+  const dpr = Math.min(1, window.devicePixelRatio || 1); // v22.7: кап 1.5→1.0 — заливка полноэкранного кадра дешевле в ~2.25×; искрам/частицам чёткость не нужна (count-up держит читаемость обводкой)
   vfxW = window.innerWidth; vfxH = window.innerHeight;
   vfxCanvas.width = Math.round(vfxW * dpr); vfxCanvas.height = Math.round(vfxH * dpr);
   vfxCanvas.style.width = vfxW + "px"; vfxCanvas.style.height = vfxH + "px";
