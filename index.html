@@ -5,9 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Hoshikuzu</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<!-- Adsgram rewarded-реклама (ads.md): грузится рядом с TG SDK. Вне Telegram молча
-     недоступен — 🎬-точки деградируют к тест-выдаче (см. showAd в скрипте) -->
-<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<!-- Adsgram rewarded-реклама (ads.md). ВАЖНО (v22.6): async + onerror — домен
+     sad.adsgram.ai сторонний и на части устройств/сетей (DNS-блок оператора,
+     фильтр MIUI/HyperOS) НЕ отвечает; блокирующий <script> вешал парсер HTML
+     намертво → игра «грузилась вечно» (Poco X6 Pro 5G). Теперь не блокирует:
+     не загрузился — 🎬-точки деградируют к тест-выдаче (см. initAdsgram/showAd) -->
+<script async src="https://sad.adsgram.ai/js/sad.min.js"
+        onload="window.__adsgramReady&&window.__adsgramReady()"
+        onerror="window.__adsgramFailed=1"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
@@ -1009,6 +1014,44 @@
 
 <script>
 "use strict";
+/* ═══════════ ДИАГНОСТИКА: экранный ловец ошибок (v22.6) ═══════════
+   Весь код — один синхронный <script>, а tg.ready() в самом конце. Любое
+   необработанное исключение выше него → Telegram крутит свой лоадер вечно
+   («не открывается» на конкретном webview). Здесь: (1) сразу гасим лоадер
+   Telegram (ready/expand) — спиннер не висит независимо от ошибок ниже;
+   (2) рисуем текст любой ошибки прямо на экране, чтобы её было видно на
+   устройстве без доступа к консоли. Снять можно удалив этот блок. */
+(function () {
+  function showErr(title, detail) {
+    try {
+      var d = document.getElementById("__errbox");
+      if (!d) {
+        d = document.createElement("div");
+        d.id = "__errbox";
+        d.style.cssText = "position:fixed;top:0;left:0;right:0;max-height:60%;z-index:2147483647;" +
+          "background:rgba(26,0,48,.95);color:#ff9;font:12px/1.4 monospace;padding:14px;overflow:auto;" +
+          "white-space:pre-wrap;word-break:break-word;-webkit-user-select:text;user-select:text;";
+        (document.body || document.documentElement).appendChild(d);
+      }
+      d.textContent += "● " + title + "\n" + (detail || "") + "\n\n";
+    } catch (e) {}
+  }
+  var env = "\n— " + navigator.userAgent + " · dpr=" + (window.devicePixelRatio || "?");
+  window.addEventListener("error", function (ev) {
+    if (ev && ev.error && ev.error.stack) showErr(ev.message, ev.error.stack + env);
+    else showErr((ev && ev.message) || "error",
+      ((ev && ev.filename) || "") + ":" + ((ev && ev.lineno) || "?") + ":" + ((ev && ev.colno) || "?") + env);
+  });
+  window.addEventListener("unhandledrejection", function (ev) {
+    var r = ev && ev.reason;
+    showErr("unhandledrejection", ((r && (r.stack || r.message)) || String(r)) + env);
+  });
+  // гасим лоадер Telegram СРАЗУ — иначе любая ошибка ниже = вечный спиннер
+  try {
+    var w = window.Telegram && window.Telegram.WebApp;
+    if (w) { w.ready(); w.expand && w.expand(); }
+  } catch (e) { showErr("tg.ready failed", (e && e.stack) || String(e)); }
+})();
 /* ═══════════ конфиг — зеркало balance.md (прото-баланс v3) ═══════════ */
 const CELL = 78, PAD = (170 - CELL) / 2;
 // иконки — эмодзи: index.html открывается с диска/телефона без сервера (решение 2026-06-12)
@@ -1119,7 +1162,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.5 · 2026-06-20 · canvas vfx";
+const BUILD = "Hoshikuzu v22.6 · 2026-06-21 · adsgram async";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1417,12 +1460,20 @@ const vibrate = arg => {
 // (мгновенно), чтобы прототип открывался с диска. Сменить → вписать новый ID сюда.
 const ADSGRAM_BLOCK_ID = "35299";
 let adController = null;
-try {
-  // init только если SDK загрузился И BLOCK_ID реально проставлен (не плейсхолдер)
-  if (window.Adsgram && ADSGRAM_BLOCK_ID.indexOf("PASTE_") !== 0) {
-    adController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
-  }
-} catch (e) { adController = null; }
+// SDK грузится async (см. <head>) → может прийти РАНЬШЕ или ПОЗЖЕ этого кода.
+// Идемпотентный init покрывает обе гонки: зовём сейчас (если уже загружен) и
+// вешаем на onload скрипта (window.__adsgramReady). Не загрузился — adController
+// остаётся null, showAd деградирует к тест-выдаче.
+function initAdsgram() {
+  if (adController) return;
+  try {
+    if (window.Adsgram && ADSGRAM_BLOCK_ID.indexOf("PASTE_") !== 0) {
+      adController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
+    }
+  } catch (e) { adController = null; }
+}
+window.__adsgramReady = initAdsgram;
+initAdsgram();
 // Показ rewarded-рекламы. КОНТРАКТ (ads.md §2): награда — ТОЛЬКО при полном досмотре.
 //   reward() — успех (досмотрел до конца) → выдать награду.
 //   fail()   — скип/закрытие/нет рекламы (no-fill) → БЕЗ награды, но без тупика.
