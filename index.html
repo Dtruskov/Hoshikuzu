@@ -71,9 +71,17 @@
     box-shadow: 0 4px 14px rgba(0,0,0,.5), 0 0 18px rgba(180,110,230,.45),
       inset 0 2px 4px rgba(255,255,255,.25);
     display: flex; align-items: center; justify-content: center;
-    font-size: 38px; transition: transform .2s;
+    font-size: 38px; transition: transform .2s; position: relative;
   }
   #mface.pop { transform: scale(1.25) rotate(-6deg); }
+  /* версия билда — лента по низу мордочки, всегда на виду (v22.8: была в футере, не видна) */
+  #verBadge {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    font-size: 8px; font-weight: 800; text-align: center; line-height: 1.3;
+    color: #ffd86a; background: rgba(0,0,0,.55);
+    border-radius: 0 0 16px 16px; letter-spacing: .2px;
+    pointer-events: none; white-space: nowrap; overflow: hidden;
+  }
   #bubble {
     font-size: 10.5px; line-height: 1.25; text-align: center; color: #e7d8ff;
     background: linear-gradient(#3a2160, #2a1648); border-radius: 12px;
@@ -310,8 +318,11 @@
      на десктопе flex мог их сужать (v19, запрос автора «узкие на десктопе»). Высоты не трогаем */
   /* flex:0 0 auto — иначе flex:1 (flex-basis:0%) даёт Chrome/Android сжать кнопки до
      min-content (содержимое position:absolute → высота схлопывается, текст обрезается).
-     iOS Safari это терпел, Xiaomi — нет. Явные height (140/58px) теперь уважаются везде */
-  #meta > .btn { align-self: stretch; width: 100%; flex: 0 0 auto; }
+     iOS Safari это терпел, Xiaomi — нет. Явные height (140px) теперь уважаются везде.
+     v22.8: + жёсткий лок min/max-height — на части iOS-webview flex-basis:0% наоборот РАЗДУВАЛ
+     эти кнопки на всю свободную высоту #app (height:100%) и они вылезали за экран. flex-grow:0
+     это и так чинит, но min=max=140 — страховка от любых будущих движковых причуд (баг рецидивный) */
+  #meta > .btn { align-self: stretch; width: 100%; flex: 0 0 auto; min-height: 140px; max-height: 140px; }
   /* ⚠️ ЗАФИКСИРОВАНО — НЕ МЕНЯТЬ без явного запроса автора (feel.md §10, «сейчас идеально»).
      Перерождение/колеса/автоспин = 140px, metaRow/прокачка = 58px (v19.2: под 2 строки —
      Collection «×10» переносится). Постоянно ломались — беречь. */
@@ -360,7 +371,6 @@
     text-align: center; font-size: 10.5px; color: #9a86c0; padding-bottom: 4px;
   }
   footer a { color: #c9a8ff; }
-  #buildVer { margin-top: 2px; font-size: 9px; color: #6a5a8e; letter-spacing: .3px; }
 
 
   /* ── Goals — полноэкранный оверлей: дейлики + шкала анлоков (progression.md) ── */
@@ -828,7 +838,7 @@
 <div id="app">
   <header>
     <div id="mascot">
-      <div id="mface">😺</div>
+      <div id="mface">😺<div id="verBadge"></div></div>
       <div id="bubble">Let's spin!</div>
     </div>
     <div id="bars">
@@ -879,7 +889,6 @@
   <footer>
     spins: <span id="stSpins">0</span> · earned: <span id="stWon">0</span> ·
     accelerated demo balance · <a href="#" id="resetLink">reset</a>
-    <div id="buildVer"></div>
   </footer>
 
   <!-- ═══ DEV-ПАНЕЛЬ — УДАЛИТЬ ПЕРЕД РЕЛИЗОМ (этот блок + #devPanel в CSS + секция «dev-кнопки» в JS) ═══ -->
@@ -1168,7 +1177,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.7 · 2026-06-21 · android fixes";
+const BUILD = "Hoshikuzu v22.9 · 2026-06-22 · tutorial save gate";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1266,6 +1275,10 @@ function load() {
       const d = JSON.parse(raw);
       if (d.v === SAVE_V) {
         const s = Object.assign(DEFAULTS(), d);
+        // v22.9: сейв с НЕзавершённым осн. туториалом не восстанавливаем — с гейтом в save()
+        // легитимных pre-tutDone сейвов больше не бывает, а старый «кирпич» (накопленный
+        // upgCount при tutDone=false) так расклинивается: стартуем обучение с чистого листа
+        if (!s.tutDone) return DEFAULTS();
         // грандфазер (v15): старый сейв, уже прошедший прежний туториал, не должен вдруг
         // потерять кнопки/бары из-за прогрессивного раскрытия — открываем всё разом
         if (s.tutDone && d.barSpins === undefined) {
@@ -1289,6 +1302,12 @@ const cloudAvail = () => {
 };
 let cloudTimer = null, cloudDirty = false;
 function save() {
+  // v22.9: пока идёт ОСНОВНОЙ туториал (1-я часть не пройдена) — прогресс НЕ персистим.
+  // Иначе закрытие приложения на шаге «upgrade» сохраняло S.upgCount, а tutDone оставался
+  // false → при перезапуске тутор стартовал заново и за 5 закрытий копил upgCount до 5/5,
+  // после чего шаг upgBuy пройти невозможно (doUpg выходит на максимуме) → тутор залочен.
+  // reset не задеваем: там TUT.active=false, сейв проходит штатно (в т.ч. чистит клауд).
+  if (TUT.active && !S.tutDone) return;
   S.savedAt = Date.now();
   localStorage.setItem("hoshikuzu_save", JSON.stringify(S));
   // в клауд — с троттлингом ~3с: save() летит после каждого спина
@@ -1328,7 +1347,8 @@ function cloudInit(done) {
         try {
           const d = JSON.parse(val);
           // чужую версию сейва молча отбрасываем — как и локальную (SAVE_V)
-          if (d.v === SAVE_V && (d.savedAt || 0) > (S.savedAt || 0)) {
+          // d.tutDone: незавершённый туториал из клауда не тянем (v22.9, см. save()/load())
+          if (d.v === SAVE_V && d.tutDone && (d.savedAt || 0) > (S.savedAt || 0)) {
             S = Object.assign(DEFAULTS(), d);
             recomputeMeta(); // metaBonus из пройденных бонус-ступеней шкалы
             localStorage.setItem("hoshikuzu_save", JSON.stringify(S));
@@ -4038,7 +4058,7 @@ function update() {
   document.getElementById("stWon").textContent = fmt(S.totalWon);
 }
 
-document.getElementById("buildVer").textContent = "build " + BUILD;
+document.getElementById("verBadge").textContent = (BUILD.match(/v[\d.]+/) || ["?"])[0];
 // подпись DEV-кнопки = начальный тир (без записи в localStorage — это лишь догадка) (v13.6)
 document.getElementById("devGfx").textContent = "GFX: " + (GFX_LOW ? "LOW" : "HIGH");
 regen(); update();
