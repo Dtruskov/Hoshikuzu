@@ -1277,7 +1277,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.19 · 2026-06-23 · gacha art served from Cloudflare R2 (page 1)";
+const BUILD = "Hoshikuzu v22.20 · 2026-06-23 · fix tutor close-step on phone (re-measure on R2 img load) + remove 5-tap skip";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -3428,6 +3428,12 @@ function openCardViewer(list, startIdx) {
 }
 cvPrev.addEventListener("click", () => { if (cvPos > 0) { cvPos--; cvRender(); } });
 cvNext.addEventListener("click", () => { if (cvPos < cvList.length - 1) { cvPos++; cvRender(); } });
+// R2-картинка грузится асинхронно: пока её нет, у <img> нулевая высота и кнопка Close
+// стоит выше (середина экрана) → тутор меряет её позицию по устаревшему layout, блокеры
+// накрывают реальную кнопку и тап не проходит (тутор залипал на телефоне). Перемеряем
+// тутор, когда картинка раздвинула layout. На десктопе картинка локальная — грузилась
+// мгновенно, потому баг был не виден.
+cvImg.addEventListener("load", () => { if (TUT.step === "gachaViewClose") tutRender(); });
 document.getElementById("cvClose").addEventListener("click", () => {
   cardViewer.classList.remove("show");
   renderGacha(); // обновить подсветку «new» — просмотренные карты больше не светятся
@@ -4024,16 +4030,6 @@ function tutEnd() {
   S.tutDone = true; save();
   say("idle", "😺");
 }
-// ДЕБАГ-пропуск (десктоп не проходит тутор): 5 тапов в верхнюю треть экрана во время
-// туториала скипают его целиком → обычная игра. capture, чтобы тап ловился раньше блокеров
-let tutSkipTaps = 0, tutSkipTimer = null;
-window.addEventListener("pointerdown", e => {
-  if (!TUT.active || e.clientY > innerHeight / 3) { tutSkipTaps = 0; return; }
-  tutSkipTaps++;
-  clearTimeout(tutSkipTimer);
-  tutSkipTimer = setTimeout(() => { tutSkipTaps = 0; }, 1500);
-  if (tutSkipTaps >= 5) { tutSkipTaps = 0; tutEnd(); }
-}, true);
 // общий конец мини-туториала: чистит рантайм, НЕ трогает tutDone (флаг — на вызывающем)
 function miniTutEnd() {
   TUT.active = false; TUT.step = null; TUT.force = null;
