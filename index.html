@@ -1222,7 +1222,7 @@ const GACHA_COST = 500, GACHA_RATIO = 1.9;
 const MULTI_MAX = 100;
 // магазин бустов (v11, balance.md §7, monetization.md) — сейчас всё бесплатно (тест)
 const FIVE_MIN = 5 * 60 * 1000;
-const TURBO_T1 = 1.0, TURBO_T2 = 0.5;  // durMul: тир1 = рука, тир2 = вдвое быстрее
+const TURBO_T1 = 2, TURBO_T2 = 4;      // турбо-инап: ВРЕМЕННЫЙ множитель скорости автоспина ПОВЕРХ перма (тир1 ×2, тир2 ×4)
 const WILD_STREAK = 25;                // спинов с принудительным ⚡ на 1-м барабане (v13.4: 10→25)
 const SHOP_SPINS = 25;                 // спинов за рекламу/магазин — мгновенно (v13.4: 10→25)
 const BUFF_MULT = 2;                   // «×2 харда+опыт» на 5 минут
@@ -1275,9 +1275,9 @@ const girl = gi => {
 };
 
 /* ═══════════ состояние ═══════════ */
-const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
+const SAVE_V = 20; // v20: TRACK удлинён до 19 ступеней + autospeed-чекпойнты (перестановка tier'ов → бамп вайпает демо-сейвы, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.22 · 2026-06-24 · infinite gacha: art cycles every 6 pages (gi % 54)";
+const BUILD = "Hoshikuzu v22.23 · 2026-06-24 · longer Goals (19 rungs) + 4 auto-spin speed checkpoints (→×4), turbo stacks on top";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1470,10 +1470,21 @@ const global = () => 2 ** (S.level - 1);
 // снежный ком (balance.md §4a). v13: девочки бесконечны → platMult растёт без капа,
 // это мета-ускоритель уровня (лечит «медленно набирающийся опыт» — запрос автора)
 const platMult = () => 1 + 0.05 * S.plat.filter(Boolean).length;
-// магазинные бусты (v11, balance.md §7): tempMult — временный ×2 к харде/экспе;
-// turboMul — durMul автоспина (тир1 = рука, тир2 вдвое быстрее), иначе медленный авто
+// магазинные бусты (v11, balance.md §7): tempMult — временный ×2 к харде/экспе.
 const turboActive = () => S.turboUntil > Date.now();
-const turboMul = () => !turboActive() ? AUTO_DURMUL : (S.turboTier >= 2 ? TURBO_T2 : TURBO_T1);
+// СКОРОСТЬ АВТОСПИНА (v22.23, progression.md §2a). Модель «фактор скорости» SF (больше = быстрее);
+// durMul автоспина = AUTO_DURMUL / SF, с полом AUTO_DUR_FLOOR (защита от строба на пике).
+//   • autoSpeedMul() — ПОСТОЯННЫЙ SF из пройденных autospeed-ступеней Goals (1 → 1.5 → 2 → 3 → 4),
+//     считается из track.tier вживую (как metaBonus, в сейве не хранится).
+//   • turboSpeedMul() — ВРЕМЕННЫЙ множитель турбо-инапа ПОВЕРХ перма (стек): тир1 ×2, тир2 ×4.
+const autoSpeedMul = () => {
+  let sf = 1;
+  for (let i = 0; i < S.track.tier && i < TRACK.length; i++)
+    if (TRACK[i].kind === "autospeed") sf = Math.max(sf, TRACK[i].val);
+  return sf;
+};
+const turboSpeedMul = () => !turboActive() ? 1 : (S.turboTier >= 2 ? TURBO_T2 : TURBO_T1);
+const autoDurMul = () => Math.max(AUTO_DUR_FLOOR, AUTO_DURMUL / (autoSpeedMul() * turboSpeedMul()));
 const tempMult = () => S.mult2Until > Date.now() ? BUFF_MULT : 1;
 // туториальный буст опыта (v15.2): первые 3 уровня перерождения копятся быстрее, чтобы
 // обучающая секция (автоспин на 2-м престиже, колеса на 3-м) не тянулась; на L4+ —
@@ -2562,15 +2573,13 @@ autoBtn.addEventListener("click", () => {
   }
   S.auto = !S.auto; ac(); update(); save();
 });
-// автоспин: цена та же, медленность — в самих барабанах (durMul 2.2 против ручных
-// 0.7–1.35). Руку автоспин НЕ задействует — рука только про ручную игру.
-// «турбо-автоспин» (нормальная скорость барабанов) — будущий инап (balance.md §2a)
-const AUTO_DURMUL = 2.2;
-// турбо-бust (магазин §7): durMul авто = turboMul() — медленный по умолчанию,
-// тир1 = скорость руки (1.0), тир2 = вдвое быстрее (0.5), пока активен таймер
+// автоспин: цена та же, медленность — в самих барабанах. Базовый durMul 2.2 (SF=1, ручные 0.7–1.35).
+// Goals-чекпойнты постоянно повышают SF (до ×4 → durMul 0.55), турбо-инап множит сверху (autoDurMul()).
+const AUTO_DURMUL = 2.2;               // базовый медленный автоспин (SF = 1)
+const AUTO_DUR_FLOOR = 0.3;            // пол durMul — даже на пике (перм ×4 + турбо ×4) не строб
 setInterval(() => {
   if (S.auto && S.autoUnlocked && !spinning && S.spins >= 1
-      && !bonusOverlay.classList.contains("show")) doSpin(turboMul());
+      && !bonusOverlay.classList.contains("show")) doSpin(autoDurMul());
 }, 300);
 
 /* ═══════════ реген спинов ═══════════ */
@@ -2830,27 +2839,32 @@ rltAllBtn.addEventListener("click", rltSpinAll);
 // ступени открывают фичи (флаги rebirth/auto/shop/wheel) через те же мини-туторы (onboardingCheck).
 // Бонус-ступени дают перм. exp/coin % (кормят metaBonus) или расходники. Числа — демо, тюнятся в balance.md.
 const ASCEND_XP = 25, WIN_XP = 1, BONUS_XP = 4, DAILY_ALL_BONUS = 30;
-// ступени: feat (какая фича) · exp/coin (перм. %) · spins/tickets/turbo (расходник) · patron (exp+coin)
+// ступени: feat (фича) · exp/coin (перм.%) · autospeed (перм. скорость автоспина) · spins/tickets/turbo (расходник) · patron
 // v19: магазин должен открыться за 1-ю сессию (запрос автора). Путь к нему — только 3 feature-
-// ступени без филлеров (пожертвовали ранний «+5 Energy»): rebirth 30 → auto 90 → shop 180.
-// За сессию набирается ~250 track-опыта (дейлики ~155 + перерождения + вины) → 180 достижимо.
-// Бонус-филлеры (+%/расходники) сдвинуты ПОСЛЕ магазина. progression.md §2.
+// ступени без филлеров: rebirth 0 → auto 90 → shop 180. progression.md §2.
+// v22.23: лестница удлинена (15→19, max 3400→4700), чтобы путь «не скликивался» за сессию;
+// добавлены 4 autospeed-чекпойнта — ПОСТОЯННО ускоряют автоспин ×1.5→×2→×3→×4 (финал = 4× от
+// базового медленного авто, см. autoDurMul). Раннюю связку (до shop 180) НЕ трогали.
 const TRACK = [
-  { cost: 0,    kind: "feat",    feat: "rebirth", ic: "♻️", name: "Ascension unlocked" }, // cost 0: открывается СРАЗУ как шкала экспы полна (v19.1), не ждёт track-опыт
-  { cost: 90,   kind: "feat",    feat: "auto",    ic: "🐢", name: "Auto-play unlocked" },
-  { cost: 180,  kind: "feat",    feat: "shop",    ic: "🛒", name: "Shop unlocked" },
-  { cost: 280,  kind: "exp",     val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
-  { cost: 400,  kind: "turbo",   val: 60,         ic: "🚀", name: "Turbo boost" },
-  { cost: 540,  kind: "coin",    val: 0.03,       ic: "🪙", name: "+3% Coins forever" },
-  { cost: 700,  kind: "feat",    feat: "wheel",   ic: "🎟️", name: "Star Wheel unlocked" },
-  { cost: 900,  kind: "exp",     val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
-  { cost: 1120, kind: "tickets", val: 5,          ic: "🎟️", name: "+5 Tickets" },
-  { cost: 1380, kind: "coin",    val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
-  { cost: 1680, kind: "exp",     val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
-  { cost: 2020, kind: "spins",   val: 10,         ic: "🎲", name: "+10 Energy" },
-  { cost: 2420, kind: "coin",    val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
-  { cost: 2880, kind: "exp",     val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
-  { cost: 3400, kind: "patron",  val: 0.10,       ic: "🏆", name: "Patron — +10% EXP & Coins" },
+  { cost: 0,    kind: "feat",      feat: "rebirth", ic: "♻️", name: "Ascension unlocked" }, // cost 0: открывается СРАЗУ как шкала экспы полна (v19.1)
+  { cost: 90,   kind: "feat",      feat: "auto",    ic: "🐢", name: "Auto-play unlocked" },
+  { cost: 180,  kind: "feat",      feat: "shop",    ic: "🛒", name: "Shop unlocked" },
+  { cost: 280,  kind: "exp",       val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
+  { cost: 380,  kind: "autospeed", val: 1.5,        ic: "🏃", name: "Auto-spin speed ×1.5" },
+  { cost: 520,  kind: "turbo",     val: 60,         ic: "🚀", name: "Turbo boost" },
+  { cost: 680,  kind: "coin",      val: 0.03,       ic: "🪙", name: "+3% Coins forever" },
+  { cost: 860,  kind: "autospeed", val: 2,          ic: "🏃", name: "Auto-spin speed ×2" },
+  { cost: 1060, kind: "feat",      feat: "wheel",   ic: "🎟️", name: "Star Wheel unlocked" },
+  { cost: 1280, kind: "exp",       val: 0.03,       ic: "🧿", name: "+3% EXP forever" },
+  { cost: 1520, kind: "tickets",   val: 5,          ic: "🎟️", name: "+5 Tickets" },
+  { cost: 1800, kind: "coin",      val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
+  { cost: 2100, kind: "autospeed", val: 3,          ic: "🏃", name: "Auto-spin speed ×3" },
+  { cost: 2440, kind: "exp",       val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
+  { cost: 2800, kind: "spins",     val: 10,         ic: "🎲", name: "+10 Energy" },
+  { cost: 3200, kind: "coin",      val: 0.05,       ic: "🪙", name: "+5% Coins forever" },
+  { cost: 3650, kind: "exp",       val: 0.05,       ic: "🧿", name: "+5% EXP forever" },
+  { cost: 4150, kind: "autospeed", val: 4,          ic: "⚡", name: "Auto-spin speed ×4 (max)" },
+  { cost: 4700, kind: "patron",    val: 0.10,       ic: "🏆", name: "Patron — +10% EXP & Coins" },
 ];
 const FEAT_FLAG = { rebirth: "rebirthUnlocked", auto: "autoUnlocked", shop: "shopUnlocked", wheel: "wheelUnlocked" };
 
@@ -2956,6 +2970,7 @@ function rungSub(r) {
   if (r.kind === "spins") return `+${r.val} Energy now`;
   if (r.kind === "tickets") return `+${r.val} Tickets now`;
   if (r.kind === "turbo") return "Turbo auto-play (1 min)";
+  if (r.kind === "autospeed") return `Auto-spin speed ×${r.val} forever`;
   return "";
 }
 function renderTrack() {
