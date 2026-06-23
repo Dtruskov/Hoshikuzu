@@ -427,6 +427,7 @@
   }
   .trkClaim:disabled { background: #2a2740; color: #6f6a88; cursor: default; }
   .trkClaim:active:not(:disabled) { transform: scale(.98); }
+  .trkClaim.blink { animation: btnblink .9s ease infinite; } /* мигает, как остальные кнопки, когда есть что забрать */
   /* ступень шкалы */
   .trkRung {
     display: flex; align-items: center; gap: 11px;
@@ -1299,7 +1300,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.27 · 2026-06-24 · Telegram Stars wired to worker (hoshikuzu-bot.workers.dev)";
+const BUILD = "Hoshikuzu v22.28 · 2026-06-24 · smooth gallery swipe across whole collection + tutor autoplay/shop open on tap + dailies blink/scroll + view-EXP text fix";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -3038,7 +3039,7 @@ function renderTrack() {
     const pct = Math.min(100, t.prog / t.need * 100);
     const btn = t.claimed
       ? `<button class="trkClaim" disabled>Claimed ✓</button>`
-      : (t.done ? `<button class="trkClaim" data-claim="${i}">Claim +${t.rew} track XP</button>` : "");
+      : (t.done ? `<button class="trkClaim blink" data-claim="${i}">Claim +${t.rew} track XP</button>` : "");
     dh += `<div class="trkDaily"><div class="d-row"><span class="d-name">${t.ic} ${t.name}</span>`
         + `<span class="d-rew">${Math.min(t.prog, t.need)}/${t.need}</span></div>`
         + `<div class="trkBar"><i style="width:${pct}%"></i></div>${btn}</div>`;
@@ -3069,6 +3070,7 @@ const trackOverlay = document.getElementById("trackOverlay");
 document.getElementById("trackBtn").addEventListener("click", () => {
   renderTrack();
   trackOverlay.classList.add("show");
+  document.getElementById("trkScroll").scrollTop = 0; // всегда открываем сверху (дейлики), не соскролленным
 });
 document.getElementById("trkClose").addEventListener("click", () => trackOverlay.classList.remove("show"));
 trackOverlay.addEventListener("click", e => { if (e.target === trackOverlay) trackOverlay.classList.remove("show"); });
@@ -3462,9 +3464,14 @@ gachaBody.addEventListener("click", e => {
   // тап по открытой карте в коллекции девочки → полноразмерный просмотр (только если есть арт)
   const card = e.target.closest(".gcard.own");
   if (card && gachaGirl !== null && hasArt(gachaGirl)) {
+    // листаем ВСЕ открытые карты ВСЕХ девочек подряд: дойдя до конца текущей девочки,
+    // свайп/стрелка переходит к открытым картам следующей (запрос автора) — так видно всю коллекцию
     const list = [];
-    for (let k = 0; k < 9; k++) if (S.cards[gachaGirl][k] > 0) list.push({ g: gachaGirl, c: k });
-    openCardViewer(list, list.findIndex(x => x.c === +card.dataset.c));
+    for (let g = 0; g < S.cards.length; g++) {
+      if (!S.cards[g]) continue;
+      for (let k = 0; k < 9; k++) if (S.cards[g][k] > 0) list.push({ g, c: k });
+    }
+    openCardViewer(list, list.findIndex(x => x.g === gachaGirl && x.c === +card.dataset.c));
     return;
   }
   const t = e.target.closest(".girl");
@@ -3510,6 +3517,7 @@ function cvRender() {
   cvCap.textContent = girl(g).name; // без «img N» — только имя
   cvPrev.disabled = cvPos <= 0;
   cvNext.disabled = cvPos >= cvList.length - 1;
+  cvGain.classList.remove("show"); // сброс «+опыт»: иначе на уже просмотренной карте висел старый текст (баг)
   // первый просмотр этой карты в полный размер → немного опыта (листая, собираем за каждую)
   ensureGirl(g);
   if (!S.cSeen[g][c]) {
@@ -3526,16 +3534,59 @@ function openCardViewer(list, startIdx) {
   if (!list || !list.length) return;
   cvList = list; cvPos = Math.max(0, Math.min(startIdx | 0, list.length - 1));
   cardViewer.classList.add("show"); // показать ДО рендера — иначе у элементов нет rect (частицы летели в угол)
+  cvImg.style.transition = ""; cvImg.style.transform = ""; cvImg.style.opacity = ""; // сброс свайп-анимации
   cvRender();
   if (TUT.step === "gachaView") tutGoto("gachaViewClose"); // тутор: карта открыта → учим закрыть
 }
 cvPrev.addEventListener("click", () => { if (cvPos > 0) { cvPos--; cvRender(); } });
 cvNext.addEventListener("click", () => { if (cvPos < cvList.length - 1) { cvPos++; cvRender(); } });
-// свайп по просмотрщику = листание карт (как ‹ ›)
-attachSwipe(cardViewer, dir => {
-  if (dir === 1) { if (cvPos < cvList.length - 1) { cvPos++; cvRender(); } }
-  else if (cvPos > 0) { cvPos--; cvRender(); }
-});
+// плавный свайп просмотрщика (как галерея телефона): палец тянет картинку, отпустил →
+// доводка назад или смена со слайд-анимацией. Стрелки ‹ › остаются мгновенными.
+const cvStage = document.getElementById("cvStage");
+let cvAnimating = false;
+function cvSnapBack() {
+  cvImg.style.transition = "transform .2s ease, opacity .2s ease";
+  cvImg.style.transform = "translateX(0)"; cvImg.style.opacity = "1";
+  setTimeout(() => { cvImg.style.transition = ""; cvImg.style.transform = ""; cvImg.style.opacity = ""; }, 200);
+}
+function cvSlideTo(dir) { // dir +1 следующая, -1 предыдущая
+  if (cvAnimating) return;
+  if ((dir > 0 && cvPos >= cvList.length - 1) || (dir < 0 && cvPos <= 0)) { cvSnapBack(); return; }
+  cvAnimating = true;
+  const w = cvStage.offsetWidth || 320;
+  cvImg.style.transition = "transform .16s ease, opacity .16s ease";
+  cvImg.style.transform = `translateX(${dir > 0 ? -w : w}px)`; cvImg.style.opacity = "0";
+  setTimeout(() => {
+    cvPos += dir; cvRender();                       // меняем карту (новый src)
+    cvImg.style.transition = "none";
+    cvImg.style.transform = `translateX(${dir > 0 ? w : -w}px)`; cvImg.style.opacity = "0"; void cvImg.offsetWidth;
+    cvImg.style.transition = "transform .2s ease, opacity .2s ease";
+    cvImg.style.transform = "translateX(0)"; cvImg.style.opacity = "1";
+    setTimeout(() => { cvImg.style.transition = ""; cvImg.style.transform = ""; cvImg.style.opacity = ""; cvAnimating = false; }, 210);
+  }, 160);
+}
+(function cvDrag() {
+  let x0 = null, y0 = null, drag = false, w = 320;
+  cvStage.addEventListener("touchstart", e => {
+    if (cvAnimating || e.touches.length !== 1) { drag = false; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; w = cvStage.offsetWidth || 320; drag = true;
+  }, { passive: true });
+  cvStage.addEventListener("touchmove", e => {
+    if (!drag) return;
+    const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
+    if (Math.abs(dy) > Math.abs(dx) + 6) { drag = false; cvSnapBack(); return; } // вертикаль — не наш жест
+    const edge = (dx > 0 && cvPos <= 0) || (dx < 0 && cvPos >= cvList.length - 1);
+    const px = edge ? dx * 0.25 : dx; // сопротивление на краях
+    cvImg.style.transition = "none";
+    cvImg.style.transform = `translateX(${px}px)`;
+    cvImg.style.opacity = String(Math.max(0.35, 1 - Math.abs(px) / w * 0.7));
+  }, { passive: true });
+  cvStage.addEventListener("touchend", e => {
+    if (!drag) return; drag = false;
+    const dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 50) cvSlideTo(dx < 0 ? 1 : -1); else cvSnapBack();
+  }, { passive: true });
+})();
 // R2-картинка грузится асинхронно: пока её нет, у <img> нулевая высота и кнопка Close
 // стоит выше (середина экрана) → тутор меряет её позицию по устаревшему layout, блокеры
 // накрывают реальную кнопку и тап не проходит (тутор залипал на телефоне). Перемеряем
@@ -4147,6 +4198,7 @@ function miniTutEnd() {
 function autoTutEnd() {
   miniTutEnd();
   S.autoTutDone = true; S.obSpins = 0; // веха: считаем 5 спинов до магазина заново (v15)
+  S.auto = true;                       // по нажатию автоплей сразу ВКЛЮЧАЕТСЯ (запрос автора 2026-06-24)
   save(); update(); say("idle", "😺");
 }
 function shopTutEnd() {
@@ -4154,7 +4206,9 @@ function shopTutEnd() {
   // подарок-турбо стартует ТОЛЬКО по завершении тутора (раньше таймер тикал во время
   // обучения — запрос автора 2026-06-16): турбо тир2 (×2 быстрее руки) на 1 минуту
   S.turboUntil = Date.now() + 60 * 1000; S.turboTier = 2;
-  save(); update(); say("idle", "😺");
+  save(); update();
+  shopLog.textContent = ""; renderShop(); shopOverlay.classList.add("show"); // по нажатию магазин ОТКРЫВАЕТСЯ (запрос автора 2026-06-24)
+  say("idle", "😺");
 }
 function wheelTutEnd() { miniTutEnd(); save(); update(); say("idle", "😺"); }
 function tutStart() {
