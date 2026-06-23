@@ -21,6 +21,13 @@
      Не загрузился — фоллбэк не сработает, showAd деградирует к тест-выдаче. -->
 <script async src="https://libtl.com/sdk.js" data-zone="11193024" data-sdk="show_11193024"
         onerror="window.__monetagFailed=1"></script>
+<!-- Telega.io (ads.md, 3-й фоллбэк). ФОРМАТ: баннер/нативка (не классический rewarded —
+     ad_show может резолвиться по показу, см. showTelega/ads.md). Грузим ASYNC (НЕ блокирующим
+     тегом из инструкции) — тот же risk-класс, что adsgram/monetag (poco-load-research.md H1).
+     Init контроллера — идемпотентно в основном скрипте (window.__telegaReady на onload). -->
+<script async src="https://inapp.telega.io/sdk/v1/sdk.js"
+        onload="window.__telegaReady&&window.__telegaReady()"
+        onerror="window.__telegaFailed=1"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
@@ -1353,7 +1360,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.32 · 2026-06-24 · Monetag rewarded fallback (zone 11193024, async SDK) behind Adsgram";
+const BUILD = "Hoshikuzu v22.33 · 2026-06-24 · ad cascade Adsgram → Monetag → Telega.io (all async SDKs)";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1719,23 +1726,46 @@ initAdsgram();
 // Вне Adsgram (десктоп / BLOCK_ID не проставлен / SDK не загрузился) — мгновенная
 // выдача через reward() (тест-режим, как было до подключения). На этапе 1 это ок:
 // реальных денег у игрока нет (ads.md §2). К этапу 2 — серверный postback.
-// Monetag rewarded (ads.md, фоллбэк): глобальная show_<zone> создаётся SDK по data-sdk.
-// Зовём лениво. resolve = досмотр → reward; reject = no-fill/ошибка → fail. Нет SDK → тест-выдача.
+// Monetag rewarded (ads.md, 2-й в каскаде): глобальная show_<zone> создаётся SDK по data-sdk.
+// resolve = досмотр → reward; reject = no-fill/ошибка → следующий фоллбэк (Telega).
 const MONETAG_ZONE = "11193024";
 function showMonetag(reward, fail) {
   const fn = window["show_" + MONETAG_ZONE];
-  if (typeof fn !== "function") { reward(); return; }   // SDK не загрузился (десктоп/блок сети) → тест-выдача
+  if (typeof fn !== "function") { showTelega(reward, fail); return; } // нет SDK → следующий
   try {
-    fn().then(() => reward()).catch(() => { if (fail) fail(); });
+    fn().then(() => reward()).catch(() => showTelega(reward, fail));
+  } catch (e) { showTelega(reward, fail); }
+}
+// Telega.io (ads.md, 3-й/последний в каскаде, выплата крипто). Идемпотентный init контроллера
+// (SDK async → может прийти позже). ⚠️ ФОРМАТ баннер/нативка: ad_show может резолвиться по
+// показу, а не по полному досмотру → награда может прийти «легко». На тест-фазе терпимо (валюта
+// игровая, ads.md §2); проверить на устройстве. Нет контроллера (десктоп) → тест-выдача reward().
+const TELEGA_TOKEN = "3fe4fac1-3570-4c93-9760-843be73322c1";
+const TELEGA_BLOCK = "ea9f856a-e564-4118-bcf0-92d1dbbcae4f";
+let telegaAds = null;
+function initTelega() {
+  if (telegaAds) return;
+  try {
+    if (window.TelegaIn && window.TelegaIn.AdsController) {
+      telegaAds = window.TelegaIn.AdsController.create_miniapp({ token: TELEGA_TOKEN });
+    }
+  } catch (e) { telegaAds = null; }
+}
+window.__telegaReady = initTelega;
+initTelega();
+function showTelega(reward, fail) {
+  if (!telegaAds) { reward(); return; }                 // нет SDK (десктоп/блок сети) → тест-выдача
+  try {
+    telegaAds.ad_show({ adBlockUuid: TELEGA_BLOCK })
+      .then(() => reward()).catch(() => { if (fail) fail(); });
   } catch (e) { reward(); }
 }
-// Каскад показа (ads.md §2, контракт): Adsgram — основной (он на ревью, должен срабатывать у
-// модератора); если его SDK нет ИЛИ нет фила (reject) — пробуем Monetag (фоллбэк, фил + USDT-выплата).
-// Нет ни одного (десктоп/вне TG) → тест-выдача reward(). Награда — ТОЛЬКО при полном досмотре.
+// Каскад показа (ads.md §2): Adsgram (основной, на ревью) → Monetag → Telega.io → тест-выдача.
+// Каждая следующая сеть пробуется, только если предыдущая недоступна/без фила. Награда — при досмотре.
 function showAd(reward, fail) {
   if (!adController) { showMonetag(reward, fail); return; } // Adsgram недоступен → Monetag
   adController.show().then(() => reward())                  // resolve = досмотр до конца
-    .catch(() => showMonetag(reward, fail));                // reject (no-fill/скип) → пробуем Monetag
+    .catch(() => showMonetag(reward, fail));                // reject (no-fill/скип) → следующий
 }
 
 /* ═══════════ Telegram Stars — оплата вместо рекламы (monetization.md, stars.md) ═══════════ */
