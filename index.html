@@ -1277,7 +1277,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 20; // v20: TRACK удлинён до 19 ступеней + autospeed-чекпойнты (перестановка tier'ов → бамп вайпает демо-сейвы, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.23 · 2026-06-24 · longer Goals (19 rungs) + 4 auto-spin speed checkpoints (→×4), turbo stacks on top";
+const BUILD = "Hoshikuzu v22.24 · 2026-06-24 · swipe to browse girls/pages + green frame & view-EXP only for won girls";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -3042,7 +3042,8 @@ const viewExp = () => Math.round(VIEW_EXP * global() * platMult() * tempMult());
 // у девочки есть «новое» (неполученный view-опыт): не открывали её ИЛИ есть открытая,
 // но не просмотренная в полный размер карта. ensureGirl(gi) должен быть вызван заранее
 function girlHasNew(gi) {
-  if (!S.gSeen[gi]) return true;
+  // рамка «new» — ТОЛЬКО у девочки с выигранной, но ещё не просмотренной картой (запрос автора):
+  // пустые ❓-девочки (0 карт) не светятся и наградными не считаются. Выиграл и скипнул → рамка есть.
   for (let c = 0; c < 9; c++) if (S.cards[gi][c] > 0 && !S.cSeen[gi][c]) return true;
   return false;
 }
@@ -3372,7 +3373,30 @@ document.getElementById("collBtn").addEventListener("click", () => {
   renderGacha(); gachaOverlay.classList.add("show");
   if (TUT.step === "gachaOpen") tutGoto("gachaRoll");
 });
+// горизонтальный свайп (моб.): влево → dir +1 (вперёд), вправо → -1 (назад). Игнорим
+// вертикальные жесты и мульти-тач; ставим guard, чтобы свайп не отработал ещё и как тап.
+let swipeGuardUntil = 0;
+function attachSwipe(el, onSwipe) {
+  let x0 = null, y0 = null, t0 = 0;
+  el.addEventListener("touchstart", e => {
+    if (e.touches.length !== 1) { x0 = null; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
+  }, { passive: true });
+  el.addEventListener("touchend", e => {
+    if (x0 == null) return;
+    const tc = e.changedTouches[0], dx = tc.clientX - x0, dy = tc.clientY - y0; x0 = null;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5 && Date.now() - t0 < 700) {
+      swipeGuardUntil = Date.now() + 350; onSwipe(dx < 0 ? 1 : -1);
+    }
+  }, { passive: true });
+}
+// свайп по галерее = листание страниц девочек (как ◀▶); renderGacha сам клампит gachaPage
+attachSwipe(gachaBody, dir => {
+  if (rolling || gachaSummary || gachaGirl !== null) return;
+  gachaPage += dir; renderGacha();
+});
 gachaBody.addEventListener("click", e => {
+  if (Date.now() < swipeGuardUntil) return; // только что свайпнули — не считать это тапом
   if (rolling || gachaSummary) return;
   // стрелки ◀▶ — листание страниц девочек
   const nav = e.target.closest(".gnavBtn");
@@ -3390,7 +3414,9 @@ gachaBody.addEventListener("click", e => {
   gachaGirl = +t.dataset.g; gachaLog.textContent = "";
   // первое открытие девочки → немного опыта (стимул заглянуть в новую коллекцию)
   ensureGirl(gachaGirl);
-  if (!S.gSeen[gachaGirl]) {
+  // опыт за первое открытие — ТОЛЬКО у девочки, которую начали собирать (есть ≥1 карта):
+  // пустую ❓ открыть можно, но это не «награда» и опыта не даёт (запрос автора)
+  if (!S.gSeen[gachaGirl] && S.cards[gachaGirl].some(n => n > 0)) {
     S.gSeen[gachaGirl] = true;
     const gain = viewExp();
     S.exp += gain;
@@ -3447,6 +3473,11 @@ function openCardViewer(list, startIdx) {
 }
 cvPrev.addEventListener("click", () => { if (cvPos > 0) { cvPos--; cvRender(); } });
 cvNext.addEventListener("click", () => { if (cvPos < cvList.length - 1) { cvPos++; cvRender(); } });
+// свайп по просмотрщику = листание карт (как ‹ ›)
+attachSwipe(cardViewer, dir => {
+  if (dir === 1) { if (cvPos < cvList.length - 1) { cvPos++; cvRender(); } }
+  else if (cvPos > 0) { cvPos--; cvRender(); }
+});
 // R2-картинка грузится асинхронно: пока её нет, у <img> нулевая высота и кнопка Close
 // стоит выше (середина экрана) → тутор меряет её позицию по устаревшему layout, блокеры
 // накрывают реальную кнопку и тап не проходит (тутор залипал на телефоне). Перемеряем
