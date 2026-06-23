@@ -295,15 +295,16 @@
     border: 1px solid rgba(255,255,255,.08);
     box-shadow: 0 6px 20px rgba(0,0,0,.4), inset 0 1px 1px rgba(255,255,255,.08);
   }
-  /* v22.11: высота лочится на КОНТЕЙНЕРЕ #metaRow, а не на кнопках. На Android-webview
-     max-height у flex-кнопки с flex-basis:0% + align-items:stretch ИГНОРИРОВАЛСЯ (v22.10 не помог,
-     кнопки раздувались до ~140px, bad.jpg). Фикс-высота контейнера 58px + stretch → кнопки
-     растягиваются ровно на высоту ряда, минуя баговую ветку движка. flex:1 (равная ширина,
-     авто-переток при скрытом Shop) сохранён. */
-  #metaRow { display: flex; gap: 8px; align-items: stretch; height: 58px; min-height: 58px; max-height: 58px; }
-  /* metaRow-кнопки ПОД 2 СТРОКИ (v19.2): «Collection ×10» переносит «×10» на 2-ю строку,
-     текст по центру; высоту даёт контейнер (см. выше) */
-  #metaRow .btn { height: 58px; display: flex; align-items: center; justify-content: center; line-height: 1.2; }
+  /* v22.12: #metaRow переведён с flexbox на CSS GRID. Причина: flex:1 у кнопок (=flex-basis:0%)
+     на старых Android-WebView раздувал ИХ ВЫСОТУ до ~140px (документированный баг движка — см.
+     историю про #meta > .btn). Локи высоты на кнопке (v22.10) и на flex-контейнере (v22.11) баг
+     НЕ убрали, т.к. flex-basis:0% оставался. Grid даёт равную ширину (grid-auto-columns:1fr,
+     авто-переток при скрытом Shop) БЕЗ flex-basis вовсе; grid-template-rows:58px жёстко фиксирует
+     высоту ряда. Flexbox из ряда убран полностью — ядовитой ветки движка больше нет.
+     ⚠️ НЕ возвращать display:flex сюда (feel.md §10, баг рецидивный). */
+  #metaRow { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; grid-template-rows: 58px; gap: 8px; }
+  /* metaRow-кнопки ПОД 2 СТРОКИ (v19.2): «Collection ×10» переносит «×10» на 2-ю строку, текст по центру */
+  #metaRow .btn { height: 58px; min-height: 58px; max-height: 58px; display: flex; align-items: center; justify-content: center; line-height: 1.2; }
   .btn {
     border: none; border-radius: 13px;
     background: linear-gradient(#4a3a72, #33245a); color: #f0e7ff;
@@ -1181,7 +1182,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.11 · 2026-06-23 · metaRow container height lock";
+const BUILD = "Hoshikuzu v22.12 · 2026-06-23 · metaRow grid (no flexbox)";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
