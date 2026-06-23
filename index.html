@@ -1299,7 +1299,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.26 · 2026-06-24 · gacha art served from custom domain cdn.hoshikuzu.ru (CDN-cached)";
+const BUILD = "Hoshikuzu v22.27 · 2026-06-24 · Telegram Stars wired to worker (hoshikuzu-bot.workers.dev)";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1658,7 +1658,7 @@ function showAd(reward, fail) {
 // pre_checkout (без него платёж невозможен — это бэкенд-бот, не статика). Вписать после
 // деплоя воркера (stars.md §деплой). Плейсхолдер / вне Telegram → buyWithStars
 // деградирует к тест-выдаче (мгновенно), как реклама с диска (этап 1: выдача клиентская).
-const STARS_API = "PASTE_WORKER_URL_HERE";
+const STARS_API = "https://hoshikuzu-bot.ykeyframe.workers.dev";
 const STARS_PRICE = 10;                          // звёзд за любую покупку (плоско)
 // item — id товара; сервер строит по нему инвойс (название/payload), цена всегда STARS_PRICE.
 function buyWithStars(item, reward, fail) {
