@@ -13,6 +13,14 @@
 <script async src="https://sad.adsgram.ai/js/sad.min.js"
         onload="window.__adsgramReady&&window.__adsgramReady()"
         onerror="window.__adsgramFailed=1"></script>
+<!-- Monetag rewarded (ads.md, фоллбэк-сеть, выплата в USDT). ВАЖНО: грузим ASYNC, НЕ
+     блокирующим тегом как в их инструкции — домен libtl.com сторонний и на части
+     устройств/сетей может виснуть → парсер HTML встанет намертво (тот же риск, что
+     описан выше для adsgram и в poco-load-research.md H1). data-sdk создаёт глобальную
+     функцию window.show_11193024(...); зовём её лениво по клику, init не нужен.
+     Не загрузился — фоллбэк не сработает, showAd деградирует к тест-выдаче. -->
+<script async src="https://libtl.com/sdk.js" data-zone="11193024" data-sdk="show_11193024"
+        onerror="window.__monetagFailed=1"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
@@ -1345,7 +1353,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.31 · 2026-06-24 · Adsgram release block 36038";
+const BUILD = "Hoshikuzu v22.32 · 2026-06-24 · Monetag rewarded fallback (zone 11193024, async SDK) behind Adsgram";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1711,10 +1719,23 @@ initAdsgram();
 // Вне Adsgram (десктоп / BLOCK_ID не проставлен / SDK не загрузился) — мгновенная
 // выдача через reward() (тест-режим, как было до подключения). На этапе 1 это ок:
 // реальных денег у игрока нет (ads.md §2). К этапу 2 — серверный postback.
+// Monetag rewarded (ads.md, фоллбэк): глобальная show_<zone> создаётся SDK по data-sdk.
+// Зовём лениво. resolve = досмотр → reward; reject = no-fill/ошибка → fail. Нет SDK → тест-выдача.
+const MONETAG_ZONE = "11193024";
+function showMonetag(reward, fail) {
+  const fn = window["show_" + MONETAG_ZONE];
+  if (typeof fn !== "function") { reward(); return; }   // SDK не загрузился (десктоп/блок сети) → тест-выдача
+  try {
+    fn().then(() => reward()).catch(() => { if (fail) fail(); });
+  } catch (e) { reward(); }
+}
+// Каскад показа (ads.md §2, контракт): Adsgram — основной (он на ревью, должен срабатывать у
+// модератора); если его SDK нет ИЛИ нет фила (reject) — пробуем Monetag (фоллбэк, фил + USDT-выплата).
+// Нет ни одного (десктоп/вне TG) → тест-выдача reward(). Награда — ТОЛЬКО при полном досмотре.
 function showAd(reward, fail) {
-  if (!adController) { reward(); return; }      // ads не настроены/недоступны → тест-выдача
-  adController.show().then(() => reward())       // resolve = досмотр до конца
-    .catch(() => { if (fail) fail(); });         // reject = скип/no-fill → без награды
+  if (!adController) { showMonetag(reward, fail); return; } // Adsgram недоступен → Monetag
+  adController.show().then(() => reward())                  // resolve = досмотр до конца
+    .catch(() => showMonetag(reward, fail));                // reject (no-fill/скип) → пробуем Monetag
 }
 
 /* ═══════════ Telegram Stars — оплата вместо рекламы (monetization.md, stars.md) ═══════════ */
