@@ -928,7 +928,7 @@
 <div id="app">
   <header>
     <div id="mascot">
-      <div id="mface">😺<div id="verBadge"></div></div>
+      <div id="mface">😺</div>
       <div id="bubble">Let's spin!</div>
     </div>
     <div id="bars">
@@ -977,8 +977,7 @@
   </div>
 
   <footer>
-    spins: <span id="stSpins">0</span> · earned: <span id="stWon">0</span> ·
-    accelerated demo balance · <a href="#" id="resetLink">reset</a>
+    spins: <span id="stSpins">0</span> · earned: <span id="stWon">0</span>
   </footer>
 
   <!-- ═══ DEV-ПАНЕЛЬ — УДАЛИТЬ ПЕРЕД РЕЛИЗОМ (этот блок + #devPanel в CSS + секция «dev-кнопки» в JS) ═══ -->
@@ -1300,7 +1299,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.28 · 2026-06-24 · smooth gallery swipe across whole collection + tutor autoplay/shop open on tap + dailies blink/scroll + view-EXP text fix";
+const BUILD = "Hoshikuzu v22.29 · 2026-06-24 · production cleanup: removed footer reset, on-screen version badge, and 5-tap DEV toggle";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1701,17 +1700,8 @@ function say(kind, face) {
 }
 setInterval(() => { if (!spinning && Math.random() < .25) say("idle"); }, 12000);
 
-// DEV-панель скрыта; 5 тапов по морде маскота ТОГГЛЯТ её (откр/закр) (v13, убрать перед релизом)
-let devTaps = 0;
-mface.addEventListener("click", () => {
-  if (++devTaps < 5) return;
-  devTaps = 0;
-  const dp = document.getElementById("devPanel");
-  const opening = dp.style.display === "none";
-  dp.style.display = opening ? "flex" : "none";
-  bubble.textContent = opening ? "🛠 DEV panel open" : "🛠 DEV panel hidden";
-  mface.classList.remove("pop"); void mface.offsetWidth; mface.classList.add("pop");
-});
+// DEV-панель: тоггл по 5 тапам УБРАН перед монетизацией (2026-06-24). Сам #devPanel остаётся
+// скрытым в разметке (display:none) и недоступен — без триггера не открыть. Полный вырез — позже.
 
 /* ═══════════ барабаны ═══════════ */
 const randSym = () => {
@@ -4263,10 +4253,7 @@ function wipeSave() {
   update(); save();
   if (!TUT.active) tutStart(); // сброс = снова первый запуск
 }
-document.getElementById("resetLink").addEventListener("click", e => {
-  e.preventDefault();
-  if (confirm("Reset all demo progress?")) wipeSave();
-});
+// футер-ресет «accelerated demo balance · reset» УБРАН перед монетизацией (2026-06-24).
 
 /* ═══════════ DEV-КНОПКИ — УДАЛИТЬ ПЕРЕД РЕЛИЗОМ (этот блок + #devPanel в CSS и разметке) ═══════════ */
 // выдача масштабируется с уровнем перерождения, чтобы оставаться полезной на лейте
@@ -4454,7 +4441,7 @@ function update() {
   document.getElementById("stWon").textContent = fmt(S.totalWon);
 }
 
-document.getElementById("verBadge").textContent = (BUILD.match(/v[\d.]+/) || ["?"])[0];
+// версия с морды кота (verBadge) УБРАна перед монетизацией (2026-06-24); BUILD остаётся в исходнике как маркер.
 // подпись DEV-кнопки = начальный тир (без записи в localStorage — это лишь догадка) (v13.6)
 document.getElementById("devGfx").textContent = "GFX: " + (GFX_LOW ? "LOW" : "HIGH");
 regen(); update();
