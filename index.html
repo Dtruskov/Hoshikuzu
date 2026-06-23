@@ -387,6 +387,36 @@
   }
   footer a { color: #c9a8ff; }
 
+  /* ── ⚙ шестерёнка настроек (внизу слева) + окно настроек ── */
+  #gearBtn {
+    position: fixed; left: 9px; bottom: calc(9px + env(safe-area-inset-bottom));
+    width: 40px; height: 40px; border-radius: 50%; z-index: 11;
+    border: 1px solid rgba(255,255,255,.14); background: rgba(20,16,40,.82); color: #cdbff2;
+    font-size: 20px; line-height: 1; cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #gearBtn:active { transform: scale(.92); }
+  #setOverlay { z-index: 30; }
+  #setOverlay .setWrap {
+    width: min(92%, 380px); background: #0b0a16; border-radius: 18px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 12px 40px rgba(0,0,0,.6), 0 0 30px rgba(150,90,230,.2);
+  }
+  .setTop { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #15122a; border-bottom: 1px solid #2a2350; }
+  .setTop h2 { margin: 0; font-size: 17px; color: #efe9ff; font-weight: 800; }
+  #setClose { border: none; background: #ffffff1f; color: #efe9ff; font-size: 14px; font-weight: 800; padding: 9px 14px; border-radius: 11px; cursor: pointer; font-family: inherit; }
+  .setBody { padding: 14px; }
+  .setLbl { font-size: 13px; font-weight: 800; color: #9a8fc8; text-transform: uppercase; letter-spacing: .4px; margin: 2px 2px 9px; }
+  .setSeg { display: flex; gap: 5px; }
+  .setSeg button { flex: 1; padding: 9px 2px; border-radius: 10px; cursor: pointer; font-family: inherit; border: 1px solid #2a2350; background: #181430; color: #b9aee0; font-size: 11px; font-weight: 700; }
+  .setSeg button.on { background: linear-gradient(#8a6be0, #6a4bc4); color: #fff; border-color: #b18cff; }
+  .setSub { font-size: 12px; color: #8f86b8; margin: 9px 3px 2px; min-height: 16px; }
+  .setRow { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; color: #efe9ff; font-size: 15px; font-weight: 700; }
+  .setToggle { border: none; border-radius: 11px; padding: 9px 16px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 800; min-width: 64px; }
+  .setToggle.on { background: #4caf6e; color: #fff; }
+  .setToggle.off { background: #2a2740; color: #8a85a4; }
+  .setVer { margin-top: 18px; text-align: center; font-size: 11px; color: #54506e; }
+
 
   /* ── Goals — полноэкранный оверлей: дейлики + шкала анлоков (progression.md) ── */
   #trackOverlay { z-index: 12; }
@@ -980,6 +1010,22 @@
     spins: <span id="stSpins">0</span> · earned: <span id="stWon">0</span>
   </footer>
 
+  <!-- ⚙ настройки: тир графики / звук / вибрация / версия -->
+  <button id="gearBtn" aria-label="settings">⚙</button>
+  <div class="overlay" id="setOverlay">
+    <div class="setWrap">
+      <div class="setTop"><h2>⚙ Settings</h2><button id="setClose">✕ Close</button></div>
+      <div class="setBody">
+        <div class="setLbl">Effects</div>
+        <div id="setGfx" class="setSeg"></div>
+        <div class="setSub" id="setGfxSub"></div>
+        <div class="setRow"><span>🔊 Sound</span><button id="setSnd" class="setToggle"></button></div>
+        <div class="setRow"><span>📳 Vibration</span><button id="setVib" class="setToggle"></button></div>
+        <div class="setVer" id="setVer"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ DEV-ПАНЕЛЬ — УДАЛИТЬ ПЕРЕД РЕЛИЗОМ (этот блок + #devPanel в CSS + секция «dev-кнопки» в JS) ═══ -->
   <!-- скрыта; раскрывается 5 тапами по морде маскота (v12) -->
   <div id="devPanel" style="display:none">
@@ -1299,7 +1345,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.29 · 2026-06-24 · production cleanup: removed footer reset, on-screen version badge, and 5-tap DEV toggle";
+const BUILD = "Hoshikuzu v22.30 · 2026-06-24 · 5 graphics tiers (Pure…Cosmos) + ⚙ settings (gfx/sound/vibration/version) + swap first/last gacha page";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1355,27 +1401,43 @@ let rltSpinning = false;
 const TUT = { active: false, step: null, force: null, rendered: null };
 
 /* ═══════════ тир графики (v13.6) — бюджетные устройства давятся на пейнте победы ═══════════ */
-// GFX_LOW режет частицы/виньетку/тряску/блюр текста. Сигнал: (1) device-local флаг
-// (НЕ в S — не синкается между устройствами через CloudStorage), (2) грубая эвристика
-// по железу, (3) авто-детект по FPS во время спинов (Redmi 10S по железу не ловится —
-// 8 ядер; ловим по реальным тормозам). DEV-кнопка форсит вручную для теста.
-const GFX_KEY = "hoshikuzu_gfx";
-function gfxInit() {
-  try {
-    const v = localStorage.getItem(GFX_KEY);
-    if (v === "low") return true;
-    if (v === "high") return false;
-  } catch (e) {}
+// ═══ Локальные настройки устройства (НЕ в S — не синкаются через CloudStorage): ═══
+//   тир графики (0..4), звук, вибрация. Управляются через шестерёнку (⚙) внизу слева.
+// Тиры производительности (v22.30): от «Pure» (0 эффектов — для слабых Android) до «Cosmos».
+// Производные рычаги: GFX_OFF (тир0 — ни одной частицы/вспышки), GFX_LOW (тир0–1 — дешёвые
+// барабаны, без виньетки), PFX (плотность частиц 0..1 — прорежает на средних тирах).
+const GFX_TIERS = [
+  { name: "Pure",     sub: "no effects · fastest" },
+  { name: "Spark",    sub: "minimal effects" },
+  { name: "Glow",     sub: "balanced" },
+  { name: "Stardust", sub: "rich effects" },
+  { name: "Cosmos",   sub: "everything · for strong devices" },
+];
+const GFX_KEY = "hoshikuzu_gfxtier", SND_KEY = "hoshikuzu_snd", VIB_KEY = "hoshikuzu_vib";
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function gfxInitTier() {
+  const v = lsGet(GFX_KEY);
+  if (v != null) { const n = +v; if (n >= 0 && n <= 4) return n; }
   const dm = navigator.deviceMemory || 0, hc = navigator.hardwareConcurrency || 0;
-  return (dm && dm <= 1) || (hc && hc <= 2); // v21: смягчили (было ≤2/≤4 — слишком много шло в LOW) → почти все HIGH; реальный лаг ловит FPS-авто-детект (gfxSample в канвас-цикле)
+  return ((dm && dm <= 2) || (hc && hc <= 4)) ? 1 : 3; // слабое железо → старт «Spark», иначе «Stardust» (не макс — бережём середняки); FPS-автодетект ещё понизит
 }
-let GFX_LOW = gfxInit();
-function setGfx(low) {
-  GFX_LOW = low;
-  try { localStorage.setItem(GFX_KEY, low ? "low" : "high"); } catch (e) {}
+let gfxTier = gfxInitTier();
+let SND = lsGet(SND_KEY) !== "0";   // звук по умолчанию ВКЛ
+let VIB = lsGet(VIB_KEY) !== "0";   // вибрация по умолчанию ВКЛ
+let GFX_LOW, GFX_OFF, PFX;
+function applyGfx() {
+  GFX_OFF = gfxTier === 0;
+  GFX_LOW = gfxTier <= 1;
+  PFX = [0, 0.4, 0.65, 0.85, 1][gfxTier];   // доля пропускаемых частиц по тиру
+}
+applyGfx();
+function setGfxTier(n) {
+  gfxTier = Math.max(0, Math.min(4, n)); applyGfx(); lsSet(GFX_KEY, gfxTier);
   const b = document.getElementById("devGfx");
-  if (b) b.textContent = "GFX: " + (GFX_LOW ? "LOW" : "HIGH");
+  if (b) b.textContent = "GFX: " + GFX_TIERS[gfxTier].name;
 }
+function setGfx(low) { setGfxTier(low ? 1 : 3); } // back-compat: FPS-автодетект и dev-кнопка
 // авто-детект: сэмплируем кадры одного барабана во время спина; если ~30%+ кадров
 // тормозят (>32мс ≈ <30fps) на ~120 кадрах выборки — переключаемся в LOW и запоминаем
 let _gfxFrames = 0, _gfxSlow = 0, _gfxLastTs = 0, _gfxDecided = false;
@@ -1531,6 +1593,7 @@ function ac() {
   return AC;
 }
 function beep(freq, dur, type, vol, when) {
+  if (!SND) return;
   try {
     const c = ac(), o = c.createOscillator(), g = c.createGain();
     const t = c.currentTime + (when || 0);
@@ -1559,6 +1622,7 @@ function noiseBuffer() {
 // whoosh вращения костей — МЯГКИЙ «воздушный» вариант (v20.10): lowpass-шум без резонанса
 // (не bandpass-помехи), highpass убирает гул, тихо + колоколообразный свелл. Один на бросок
 function sWhoosh(durMs) {
+  if (!SND) return;
   try {
     const c = ac(), t = c.currentTime, dur = Math.max(.35, durMs / 1000);
     const src = c.createBufferSource(); src.buffer = noiseBuffer(); src.loop = true;
@@ -1578,6 +1642,7 @@ function sWhoosh(durMs) {
 }
 // старт броска — короткий взлётный «фвип» (фильтрованный шум, быстрый удар-спад)
 function sDiceThrow() {
+  if (!SND) return;
   try {
     const c = ac(), t = c.currentTime;
     const src = c.createBufferSource(); src.buffer = noiseBuffer();
@@ -1592,6 +1657,7 @@ function sDiceThrow() {
 }
 // приземление кости на доску: деревянный «тук» + короткое клацанье
 function sDiceLand() {
+  if (!SND) return;
   try {
     const c = ac(), t = c.currentTime;
     beep(170 + Math.random() * 50, .08, "sine", .11);  // низкий деревянный тук
@@ -1607,6 +1673,7 @@ function sDiceLand() {
 }
 const tg = window.Telegram && window.Telegram.WebApp;
 const vibrate = arg => {
+  if (!VIB) return;
   try {
     const h = tg && tg.HapticFeedback;            // в TG — богаче navigator.vibrate, работает и на iOS
     if (h) {
@@ -2141,6 +2208,8 @@ window.addEventListener("resize", vfxResize);
 const parts = [];           // пул частиц; цикл крутится только когда есть активные (экономит батарею)
 let vfxRAF = null, vfxLast = 0;
 function pushPart(p) {
+  if (GFX_OFF) return;                              // тир «Pure» — ни одной частицы
+  if (PFX < 1 && Math.random() > PFX) return;       // прореживание частиц по тиру графики
   p.life = 0; parts.push(p);
   if (parts.length > 1100) parts.shift(); // жёсткий потолок — защита от переполнения
   if (!vfxRAF) { vfxLast = 0; vfxRAF = requestAnimationFrame(vfxLoop); }
@@ -2244,6 +2313,7 @@ function comboTier(n) { return n >= 10 ? 4 : n >= 6 ? 3 : n >= 3 ? 2 : n >= 2 ? 
 /* ── экранный удар: вспышка + тряска ── */
 const screenFlash = document.getElementById("screenFlash");
 function screenPunch(tier) {
+  if (GFX_OFF) return;   // тир «Pure» — без вспышки и тряски
   if (!GFX_LOW) {
     // тусклее (пик ≤ .2 вместо .55) + спад до 0 через forwards в CSS; БЕЗ инлайн-opacity (он и оставлял «туман»)
     screenFlash.style.setProperty("--pk", Math.min(.2, .07 + tier * .035));
@@ -3064,6 +3134,26 @@ document.getElementById("trackBtn").addEventListener("click", () => {
 });
 document.getElementById("trkClose").addEventListener("click", () => trackOverlay.classList.remove("show"));
 trackOverlay.addEventListener("click", e => { if (e.target === trackOverlay) trackOverlay.classList.remove("show"); });
+
+// ── ⚙ Настройки: тир графики (Pure…Cosmos) / звук / вибрация / версия (мелким шрифтом) ──
+const setOverlay = document.getElementById("setOverlay");
+function renderSettings() {
+  document.getElementById("setGfx").innerHTML =
+    GFX_TIERS.map((t, i) => `<button data-gfx="${i}" class="${i === gfxTier ? "on" : ""}">${t.name}</button>`).join("");
+  document.getElementById("setGfxSub").textContent = GFX_TIERS[gfxTier].sub;
+  const sb = document.getElementById("setSnd"); sb.textContent = SND ? "On" : "Off"; sb.className = "setToggle " + (SND ? "on" : "off");
+  const vb = document.getElementById("setVib"); vb.textContent = VIB ? "On" : "Off"; vb.className = "setToggle " + (VIB ? "on" : "off");
+  document.getElementById("setVer").textContent = (BUILD.match(/v[\d.]+/) || ["?"])[0];
+}
+document.getElementById("gearBtn").addEventListener("click", () => { renderSettings(); setOverlay.classList.add("show"); });
+document.getElementById("setClose").addEventListener("click", () => setOverlay.classList.remove("show"));
+setOverlay.addEventListener("click", e => { if (e.target === setOverlay) setOverlay.classList.remove("show"); });
+document.getElementById("setGfx").addEventListener("click", e => {
+  const b = e.target.closest("[data-gfx]"); if (!b) return;
+  setGfxTier(+b.dataset.gfx); renderSettings();
+});
+document.getElementById("setSnd").addEventListener("click", () => { SND = !SND; lsSet(SND_KEY, SND ? "1" : "0"); if (SND) ac(); renderSettings(); });
+document.getElementById("setVib").addEventListener("click", () => { VIB = !VIB; lsSet(VIB_KEY, VIB ? "1" : "0"); if (VIB) vibrate(15); renderSettings(); });
 document.getElementById("trkDailies").addEventListener("click", e => {
   const b = e.target.closest("[data-claim]"); if (!b) return;
   claimDaily(+b.dataset.claim);
@@ -3114,7 +3204,16 @@ const ART_GIRLS  = ART_PAGES * 9;                             // = 54 уника
 // девочек и так циклятся в girl() своим периодом — лицо повторяется каждые 6 страниц.
 // Замороженный мапинг сохранён: для gi < 54 остаток gi % 54 == gi (media-delivery.md §2.1).
 const hasArt     = gi => true;                                // арт есть всегда (дальше — по кругу); эмодзи-заглушка девочек больше не нужна
-const artDir     = gi => GACHA_ART_BASE + "g/" + (gi % ART_GIRLS) + "/";
+// своп 1-й и последней страницы арта (v22.30): первая пачка g/0..8 была тестовой/слабее,
+// последняя g/45..53 — лучший арт; показываем лучший на ПЕРВОЙ странице. Только презентация
+// (S.cards индексируется по gi и не трогается; имена girl() тоже по gi). ART_GIRLS=54 → 6 страниц.
+function artFolder(gi) {
+  let ag = gi % ART_GIRLS;                 // 0..53
+  if (ag < 9) ag += ART_GIRLS - 9;         // страница 1 (0..8) → показывает арт 45..53
+  else if (ag >= ART_GIRLS - 9) ag -= ART_GIRLS - 9; // последняя (45..53) → арт 0..8
+  return ag;
+}
+const artDir     = gi => GACHA_ART_BASE + "g/" + artFolder(gi) + "/";
 const avatarSrc  = gi => artDir(gi) + "avatar.webp";
 const previewSrc = (gi, c) => artDir(gi) + "preview/" + (c + 1) + ".webp";
 const fullSrc    = (gi, c) => artDir(gi) + "full/" + (c + 1) + ".webp";
@@ -3878,6 +3977,7 @@ function jpLoop(now) {
   jpRAF = jpParts.length ? requestAnimationFrame(jpLoop) : (jpLast = 0, null);
 }
 function bonusSpawn(n) { // n частиц сверху, линейное падение (как было), монета/лоскут 50/50
+  if (GFX_OFF) return;   // тир «Pure» — без бонус-залпа
   for (let i = 0; i < n; i++) {
     const dur = 1500 + Math.random() * 1800;
     const x = Math.random() * jpW, y = -(20 + Math.random() * 60);
