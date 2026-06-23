@@ -294,6 +294,14 @@
     border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 9px;
     border: 1px solid rgba(255,255,255,.08);
     box-shadow: 0 6px 20px rgba(0,0,0,.4), inset 0 1px 1px rgba(255,255,255,.08);
+    /* v22.13: АДАПТИВНАЯ высота кнопок-столбцов (запрос автора: 140/80px не влезали на
+       часть экранов). Все столбцы получают ОДНУ вычисленную высоту var(--colH) → между
+       собой идентичны на любом устройстве (НЕ flex-распределение по контенту — оно делало
+       Ascension/Auto-play узкими, рецидивный баг). Формула: контент = 564px + 4×H, значит
+       чтобы 4 столбца влезли в экран высотой V → H=(V-564)/4. Минимум 48px (читаемость 2
+       строк), потолок 80px. -580: зазор под home-indicator. dvh — на случай дин. панелей. */
+    --colH: clamp(48px, calc((100vh  - 580px) / 4), 80px);
+    --colH: clamp(48px, calc((100dvh - 580px) / 4), 80px);
   }
   /* v22.12: #metaRow переведён с flexbox на CSS GRID. Причина: flex:1 у кнопок (=flex-basis:0%)
      на старых Android-WebView раздувал ИХ ВЫСОТУ до ~140px (документированный баг движка — см.
@@ -327,15 +335,14 @@
      v22.8: + жёсткий лок min/max-height — на части iOS-webview flex-basis:0% наоборот РАЗДУВАЛ
      эти кнопки на всю свободную высоту #app (height:100%) и они вылезали за экран. flex-grow:0
      это и так чинит, но min=max — страховка от любых будущих движковых причуд (баг рецидивный).
-     v22.13: высота 140px → 80px (запрос автора): четыре столбца ×140 = 560px не влезали в экран
-     iPhone (контент 1124px > viewport, Goals/Auto-play уезжали под низ, футер с версией терялся).
-     80px = высота из good.jpg, контент ужимается до ~884px. Текст в 2 строки помещается. */
-  #meta > .btn { align-self: stretch; width: 100%; flex: 0 0 auto; min-height: 80px; max-height: 80px; }
+     v22.13: высота 140px → адаптивная var(--colH) (см. #meta) — на части экранов не влезали;
+     теперь подгоняется под высоту окна, все столбцы одной высоты, текст в 2 строки помещается. */
+  #meta > .btn { align-self: stretch; width: 100%; flex: 0 0 auto; min-height: var(--colH); max-height: var(--colH); }
   /* ⚠️ ЗАФИКСИРОВАНО — НЕ МЕНЯТЬ без явного запроса автора (feel.md §10).
      Перерождение/колеса/автоспин = 80px, metaRow/прокачка = 58px (v19.2: под 2 строки —
      Collection «×10» переносится). Постоянно ломались — беречь. */
   #rebirthBtn {
-    position: relative; overflow: hidden; background: linear-gradient(#3a2660, #261545); padding: 0; height: 80px;
+    position: relative; overflow: hidden; background: linear-gradient(#3a2660, #261545); padding: 0; height: var(--colH);
   }
   #rebirthFill {
     position: absolute; inset: 0; width: 0%; background: linear-gradient(90deg, #8fd14a, #5f9a2c);
@@ -356,20 +363,20 @@
   #upgBtn { position: relative; overflow: hidden; padding: 0; height: 58px; }
   #upgFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, #ff6b86, #d8344f); transition: width .35s ease; }
   #upgBtnTxt { position: relative; z-index: 1; } /* центрируется флексом #metaRow .btn (line-height:44px убран — был под фикс-44, v19.2) */
-  /* автоспин и перерождение — одного размера (v22.13: 80px, текст по центру) */
-  #autoBtn { height: 80px; padding: 0 6px; display: flex; align-items: center; justify-content: center; }
+  /* автоспин и перерождение — одного размера (v22.13: адаптивная var(--colH), текст по центру) */
+  #autoBtn { height: var(--colH); padding: 0 6px; display: flex; align-items: center; justify-content: center; }
   #autoBtn.on { background: linear-gradient(#6fcdf2, #2f8fd0); color: #062235; }
   #autoBtn.off { filter: grayscale(.7) brightness(.62); } /* нет энергии — неактивный вид (но кликабелен: предложит пополнить) */
   /* Колеса экспы (v14) — между перерождением и автоспином, золотисто-янтарная */
   #wheelBtn {
-    height: 80px; padding: 0 8px; display: flex; flex-direction: column; gap: 4px;
+    height: var(--colH); padding: 0 8px; display: flex; flex-direction: column; gap: 4px;
     align-items: center; justify-content: center; line-height: 1.25;
     background: linear-gradient(135deg, #f0a830, #d4861a); color: #2a1d05; text-align: center;
   }
   #wheelBtn small { font-weight: 700; opacity: .9; font-size: 12px; }
   /* Goals — вход в шкалу анлоков (progression.md), тёплый «карта-прогресс» градиент */
   #trackBtn {
-    height: 80px; padding: 0 8px; display: flex; flex-direction: column; gap: 4px;
+    height: var(--colH); padding: 0 8px; display: flex; flex-direction: column; gap: 4px;
     align-items: center; justify-content: center; line-height: 1.25;
     background: linear-gradient(160deg, #6a4bc4, #2a1d5e); color: #efe9ff; text-align: center;
   }
@@ -1185,7 +1192,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.13 · 2026-06-23 · column buttons 140->80px";
+const BUILD = "Hoshikuzu v22.13 · 2026-06-23 · adaptive column-button height";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
