@@ -298,8 +298,11 @@
   #metaRow { display: flex; gap: 8px; }
   /* metaRow-кнопки фикс-высоты ПОД 2 СТРОКИ (v19.2, запрос автора): «Collection ×10»
      переносит «×10» на 2-ю строку → раньше Shop/Collection росли, а Upgrade (фикс 44px)
-     оставался ниже = баг «кнопка стала меньше». Теперь все три одной высоты, текст по центру */
-  #metaRow .btn { height: 58px; display: flex; align-items: center; justify-content: center; line-height: 1.2; }
+     оставался ниже = баг «кнопка стала меньше». Теперь все три одной высоты, текст по центру.
+     v22.10: + жёсткий лок min/max-height (как у #meta > .btn) — на Android-webview одиночный
+     height у flex-элемента с flex-basis:0% игнорировался и кнопки раздувались до ~140px (bad.jpg).
+     flex:1 (равная ширина) НЕ трогаем — лочим только высоту. */
+  #metaRow .btn { height: 58px; min-height: 58px; max-height: 58px; display: flex; align-items: center; justify-content: center; line-height: 1.2; }
   .btn {
     border: none; border-radius: 13px;
     background: linear-gradient(#4a3a72, #33245a); color: #f0e7ff;
