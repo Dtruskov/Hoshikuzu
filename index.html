@@ -612,28 +612,98 @@
   .sheet.scroll { max-height: 86vh; overflow-y: auto; }
   .ggrid, .cgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .girl {
-    background: #2e1c52; border-radius: 12px; padding: 6px 4px;
+    background: #241441; border-radius: 12px; padding: 0; overflow: hidden;
     text-align: center; font-size: 12px; cursor: pointer;
   }
   .girl:active { transform: scale(.96); }
-  .girl .gava { font-size: 30px; line-height: 1.25; }
-  .girl .gprog { color: #8a8c96; font-size: 11px; }
+  /* блок аватарки = картинка с рамкой на градиентной подложке, отделённая от текста */
+  .girl .gavaWrap { padding: 6px; background: linear-gradient(160deg, #503484, #2a1850); }
+  .girl .gava { aspect-ratio: 3/2; display: flex; align-items: center; justify-content: center; font-size: 34px; }
+  .girl .ginfo { padding: 5px 4px 7px; background: #1a1034; }
+  .girl .gname { color: #ece6ff; font-weight: 700; line-height: 1.25; }
+  .girl .gprog { color: #9a8cc0; font-size: 11px; }
   .girl.done { box-shadow: 0 0 10px rgba(255,211,77,.7); }
+  .girl.done .gname { color: #ffe9a8; }
+  /* «new» — непросмотренный контент (есть неполученный опыт): яркая зелёная рамка.
+     статичная (без анимации) — галерея перерисовывается каждый тик автоспина, пульс бы дёргался */
+  .girl.new, .gcard.own.new { box-shadow: 0 0 0 2px #aef0a0, 0 0 14px rgba(150,240,140,.85); }
   .gcard {
-    background: #2e1c52; border-radius: 10px; padding: 8px 4px;
+    background: #2e1c52; border-radius: 10px; padding: 5px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     text-align: center; font-size: 10.5px; color: #b9bac2;
   }
-  .gcard .ce { font-size: 26px; line-height: 1.4; }
+  .gcard .ce { font-size: 30px; line-height: 1.2; }
   .gcard.no { opacity: .4; }
   .gcard.gplat { grid-column: 1 / -1; }
   .gcard.gplat:not(.no) {
     background: linear-gradient(135deg, #3a3322, #4a3d1f);
     box-shadow: 0 0 12px rgba(255,211,77,.55); color: #ffd34d; font-weight: 700;
   }
+  /* реальный арт вместо эмодзи: аватарки/превью — портрет 2:3, заполняют тайл */
+  .girl .gavaImg {
+    width: 100%; aspect-ratio: 3/2; object-fit: cover; display: block; border-radius: 8px;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.18), 0 0 0 3px rgba(150,95,225,.55), 0 3px 8px rgba(0,0,0,.45);
+  }
+  .girl.done .gavaImg { box-shadow: 0 0 0 1px rgba(255,255,255,.3), 0 0 0 3px rgba(255,200,90,.8), 0 3px 10px rgba(0,0,0,.45); }
+  .gcard.own { cursor: pointer; }
+  .gcard.own:active { transform: scale(.96); }
+  .gcard .gcardImg { width: 100%; aspect-ratio: 3/2; object-fit: cover; border-radius: 7px; display: block; }
+  .galcard .galcardImg { width: 100%; aspect-ratio: 3/2; object-fit: cover; border-radius: 7px; }
+  /* «❓»-заглушка размером с превью (3:2) — карта/портрет появляется на том же месте, без рывка */
+  .gph {
+    width: 100%; aspect-ratio: 3/2; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; color: #6a5a96; background: rgba(255,255,255,.04);
+  }
+  /* платина-карта: альбом 3:2 на всю ширину окна + богатая платиновая рамка */
+  .gcard.gplat.plat-art {
+    grid-column: 1 / -1; padding: 5px; border-radius: 14px;
+    background: linear-gradient(135deg,#e9ebf2 0%,#aab2c6 22%,#f6f7fb 48%,#9aa3ba 72%,#dfe3ee 100%);
+    box-shadow: 0 0 24px rgba(205,220,255,.55), 0 6px 22px rgba(0,0,0,.55),
+                inset 0 0 0 1px rgba(255,255,255,.75);
+    color: #2b2540;
+  }
+  .gplat.plat-art .gplatImg { width: 100%; max-height: 150px; aspect-ratio: 3/2; object-fit: cover; display: block; border-radius: 9px; }
+  .gplat.plat-art .gplatcap {
+    text-align: center; padding: 7px 4px 3px; font-weight: 800; font-size: 11.5px;
+    letter-spacing: .5px; color: #2b2540; text-shadow: 0 1px 0 rgba(255,255,255,.55);
+  }
+
+  /* ── полноразмерный просмотр карточки (внутри коллекции девочки) ── */
+  #cardViewer { flex-direction: column; gap: 14px; padding: 16px; z-index: 20; }
+  #cvStage { position: relative; display: flex; align-items: center; justify-content: center; width: min(94%, 460px); }
+  #cvImg {
+    max-width: 100%; max-height: 70vh; border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.6), 0 0 30px rgba(150,90,230,.35);
+  }
+  .cvArrow {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    border: none; background: rgba(20,12,40,.72); color: #fff; font-size: 30px; font-weight: 700;
+    width: 46px; height: 46px; border-radius: 50%; cursor: pointer; line-height: 1;
+    display: flex; align-items: center; justify-content: center; font-family: inherit;
+  }
+  .cvArrow:active:not(:disabled) { transform: translateY(-50%) scale(.92); }
+  .cvArrow:disabled { opacity: .22; cursor: default; }
+  #cvPrev { left: -6px; } #cvNext { right: -6px; }
+  #cvCap { color: #e8e8ea; font-size: 14px; font-weight: 700; }
+  #cardViewer .btn { width: min(94%, 460px); flex: 0 0 auto; }
+  /* «+опыт за просмотр» — текстом поверх картинки, всплывает и тает */
+  #cvGain {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    pointer-events: none; font-size: 30px; font-weight: 900; color: #d6ffc8;
+    text-shadow: 0 0 16px rgba(150,240,140,.95), 0 2px 6px rgba(0,0,0,.85); opacity: 0; white-space: nowrap;
+  }
+  #cvGain.show { animation: cvGainPop 1.3s ease forwards; }
+  @keyframes cvGainPop {
+    0%   { opacity: 0; transform: translate(-50%,-50%) scale(.5); }
+    18%  { opacity: 1; transform: translate(-50%,-58%) scale(1.12); }
+    55%  { opacity: 1; transform: translate(-50%,-66%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%,-92%) scale(1); }
+  }
 
   /* гача-окно одинакового размера на всех вкладках (крутки / замок / карточки), v13:
      фикс-высота, скроллится только тело — окно не «прыгает» при переключении */
-  #gachaOverlay .sheet { height: min(86vh, 600px); overflow: hidden; }
+  #gachaOverlay .sheet { width: min(94%, 430px); height: min(92vh, 720px); overflow: hidden; }
   /* padding-инсет (v15.2): #gachaBody — скролл-контейнер (overflow-y:auto → x клипает),
      светящаяся рамка крайних тайлов (.sel/.done/.gplat, box-shadow до 16px) обрезалась
      краем окна. Инсет ≥ радиуса свечения → рамка помещается в padding-box, не режется */
@@ -668,13 +738,17 @@
   }
   .galwrap::-webkit-scrollbar { display: none; }
   .galwrap.grabbing { cursor: grabbing; }
-  .galstrip { display: flex; gap: 8px; padding: 0 8px; width: max-content; }
+  /* крупные карты-герои: одна по центру, края соседних подглядывают слева/справа (v22.16).
+     боковой padding strip = ~половина «выглядывания», чтобы крайние карты тоже центровались */
+  .galstrip { display: flex; gap: 10px; padding: 0 28px; width: max-content; }
   .galcard {
-    flex: none; width: 92px; background: #2e1c52; border-radius: 10px; padding: 10px 4px;
-    text-align: center; font-size: 10px; color: #b9bac2; display: flex; flex-direction: column; gap: 2px;
+    flex: none; width: min(74vw, 260px); background: #2e1c52; border-radius: 12px; padding: 8px;
+    text-align: center; font-size: 12px; color: #b9bac2; display: flex; flex-direction: column; gap: 4px;
+    cursor: pointer;
   }
-  .galcard .ce { font-size: 34px; line-height: 1.3; }
-  .galcard b { font-size: 11px; color: #e8e8ea; }
+  .galcard:active { transform: scale(.97); }
+  .galcard .ce { font-size: 64px; line-height: 1.3; }
+  .galcard b { font-size: 13px; color: #e8e8ea; }
 
   /* ── гача-колеса ── */
   .girl.sel, .gcard.sel { box-shadow: 0 0 0 2px #ffd34d, 0 0 16px #ffd34d; }
@@ -970,6 +1044,17 @@
   </div>
 </div>
 
+<div class="overlay" id="cardViewer">
+  <div id="cvStage">
+    <button class="cvArrow" id="cvPrev" aria-label="prev">‹</button>
+    <img id="cvImg" src="" alt="">
+    <button class="cvArrow" id="cvNext" aria-label="next">›</button>
+  </div>
+  <div id="cvCap"></div>
+  <button class="btn" id="cvClose">close</button>
+  <div id="cvGain"></div>
+</div>
+
 <div class="overlay" id="shopOverlay">
   <div class="sheet scroll">
     <h2>Shop 🛒</h2>
@@ -1192,7 +1277,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 19; // v19: ретюн шкалы (магазин в 1-ю сессию), wild достраивает спецы, гейтинг билет/буст, бар Coins в туторе раньше (бамп = вайп демо-сейвов, тутор перезапускается)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.13 · 2026-06-23 · adaptive column-button height";
+const BUILD = "Hoshikuzu v22.19 · 2026-06-23 · gacha art served from Cloudflare R2 (page 1)";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1208,6 +1293,10 @@ const DEFAULTS = () => ({
   lastRegen: Date.now(), totalSpins: 0, totalWon: 0, auto: false,
   // одна страница (9 девочек) на старте; растут по мере открытия страниц (v13)
   cards: Array.from({ length: 9 }, () => Array(9).fill(0)), plat: Array(9).fill(false),
+  // «просмотрено» отдельно от «владения» (v22.15): gSeen[gi] — открывал ли коллекцию девочки,
+  // cSeen[gi][c] — смотрел ли карту в полный размер. Первый просмотр даёт немного опыта,
+  // непросмотренное подсвечивается рамкой. Аддитивно — старые сейвы подхватят дефолт.
+  gSeen: Array(9).fill(false), cSeen: Array.from({ length: 9 }, () => Array(9).fill(false)),
   tutDone: false,
   // магазинные бусты (v11): таймеры-таймстемпы переживают перезагрузку в своём окне,
   // переживают перерождение (это «инапы», не ран-прогресс) — balance.md §7
@@ -2931,12 +3020,35 @@ const rollCost = () => Math.round(GACHA_COST * GACHA_RATIO ** (S.level - 1));
 // пассива. У опыта нет капа (спины капались и «сгорали»). balance.md §4a
 const DUPE_EXP = 200;
 const dupeExp = () => Math.round(DUPE_EXP * global() * platMult() * tempMult());
+// просмотр нового контента даёт немного опыта (стимул открывать коллекцию). Скейлится
+// как дубль, но скромнее. Первый просмотр девочки/карты — разовый, отмечается в gSeen/cSeen
+const VIEW_EXP = 120;
+const viewExp = () => Math.round(VIEW_EXP * global() * platMult() * tempMult());
+// у девочки есть «новое» (неполученный view-опыт): не открывали её ИЛИ есть открытая,
+// но не просмотренная в полный размер карта. ensureGirl(gi) должен быть вызван заранее
+function girlHasNew(gi) {
+  if (!S.gSeen[gi]) return true;
+  for (let c = 0; c < 9; c++) if (S.cards[gi][c] > 0 && !S.cSeen[gi][c]) return true;
+  return false;
+}
 // эмодзи карточек — детерминированные «рандомные»: внутри девочки не повторяются
 const CARD_EMOJI = ["🌸","🍓","🎀","🍰","💄","🌙","💎","🍷","🧁","🌺","🎶","🍒",
   "💋","🦋","🌊","🔥","🍑","✨","🎧","🍭","🌈","🍾","💌","🌹","🍫","🎵","🪞","👠",
   "💍","🛁","🌟","🍸","🎐","🧸","🪐","🩰"];
 const cardEmoji = (g, c) => CARD_EMOJI[(g * 13 + c * 5) % CARD_EMOJI.length];
 const PLAT_EMOJI = ["💝","💖","💘","💞","💓","💗","💕","❤️‍🔥","💟"];
+
+// ── гача-арт: реальные картинки из облака (Cloudflare R2, media-delivery.md §2/§3) ──
+// Детерминированный вечный мапинг /g/{gi}/… (media-delivery.md §2.1, append-only — НЕ переставлять).
+// ⚠️ Вставь сюда публичный URL R2-бакета (с завершающим слэшем), напр. https://pub-xxxx.r2.dev/
+const GACHA_ART_BASE = "https://pub-eec5e25adf9c4eb2b8e347cf3710fe97.r2.dev/";
+const ART_PAGES = 1;                                          // сколько страниц залито в R2 (9 девочек/стр.)
+const hasArt     = gi => gi < ART_PAGES * 9;                  // есть ли реальный арт у девочки (иначе эмодзи-заглушка)
+const artDir     = gi => GACHA_ART_BASE + "g/" + gi + "/";
+const avatarSrc  = gi => artDir(gi) + "avatar.webp";
+const previewSrc = (gi, c) => artDir(gi) + "preview/" + (c + 1) + ".webp";
+const fullSrc    = (gi, c) => artDir(gi) + "full/" + (c + 1) + ".webp";
+const platSrc    = gi => artDir(gi) + "platinum.webp";
 
 const gachaOverlay = document.getElementById("gachaOverlay");
 const gachaTitle = document.getElementById("gachaTitle"), gachaBody = document.getElementById("gachaBody");
@@ -2966,6 +3078,9 @@ function clearGachaTimers() { gachaTimers.forEach(clearTimeout); gachaTimers = [
 function ensureGirl(gi) {
   if (!S.cards[gi]) S.cards[gi] = Array(9).fill(0);
   if (S.plat[gi] == null) S.plat[gi] = false; // без ?? — компат со старыми webview
+  if (!S.gSeen) S.gSeen = []; if (!S.cSeen) S.cSeen = []; // старые сейвы без полей
+  if (S.gSeen[gi] == null) S.gSeen[gi] = false;
+  if (!S.cSeen[gi]) S.cSeen[gi] = Array(9).fill(false);
 }
 function ensurePage(p) { for (let g = p * 9; g < p * 9 + 9; g++) ensureGirl(g); }
 function pageComplete(p) {
@@ -3008,9 +3123,14 @@ function renderGacha() {
       Array.from({ length: 9 }, (_, pos) => {
         const i = gachaPage * 9 + pos, gd = girl(i);
         const owned = S.cards[i].filter(n => n > 0).length;
-        return `<div class="girl${S.plat[i] ? " done" : ""}" data-g="${i}">
-          <div class="gava">${gd.ava}</div><div>${gd.name}</div>
-          <div class="gprog">${S.plat[i] ? "⭐ 10/10" : owned + "/9"}</div></div>`;
+        // портрет появляется только с первой полученной картой набора; до этого — «❓»
+        const ava = hasArt(i)
+          ? (owned > 0 ? `<img class="gavaImg" src="${avatarSrc(i)}" alt="">` : `<div class="gph">❓</div>`)
+          : `<div class="gava">${gd.ava}</div>`;
+        return `<div class="girl${S.plat[i] ? " done" : ""}${girlHasNew(i) ? " new" : ""}" data-g="${i}">
+          <div class="gavaWrap">${ava}</div>
+          <div class="ginfo"><div class="gname">${gd.name}</div>
+          <div class="gprog">${S.plat[i] ? "⭐ 10/10" : owned + "/9"}</div></div></div>`;
       }).join("") + `</div>`;
     // крутить можно ТОЛЬКО на текущей странице — на собранных кнопки нет (не фармить)
     // одна кнопка (v13.4): крутит сразу на ВСЕ доступные роллы (k); отдельной «1 ролл» нет
@@ -3031,16 +3151,21 @@ function renderGacha() {
     gachaBack.textContent = "close";
   } else {
     const i = gachaGirl;
+    ensureGirl(i); // гарантируем cSeen[i]/cards[i] для рендера подсветки
     gachaTitle.textContent = girl(i).ava + " " + girl(i).name;
     let html = `<div class="cgrid">`;
     for (let c = 0; c < 9; c++) {
       const cnt = S.cards[i][c];
       html += cnt > 0
-        ? `<div class="gcard"><div class="ce">${cardEmoji(i, c)}</div>img ${c + 1}${cnt > 1 ? " ×" + cnt : ""}</div>`
-        : `<div class="gcard no"><div class="ce">❓</div>img ${c + 1}</div>`;
+        ? `<div class="gcard own${S.cSeen[i][c] ? "" : " new"}" data-c="${c}">${hasArt(i)
+            ? `<img class="gcardImg" src="${previewSrc(i, c)}" alt="">`
+            : `<div class="ce">${cardEmoji(i, c)}</div>`}</div>`
+        : `<div class="gcard no"><div class="gph">❓</div></div>`;
     }
     html += S.plat[i]
-      ? `<div class="gcard gplat"><div class="ce">${PLAT_EMOJI[i % PLAT_EMOJI.length]}</div>PLATINUM CARD · VIDEO · +5% EXP forever</div>`
+      ? (hasArt(i)
+          ? `<div class="gcard gplat plat-art"><img class="gplatImg" src="${platSrc(i)}" alt=""><div class="gplatcap">PLATINUM CARD · +5% EXP forever</div></div>`
+          : `<div class="gcard gplat"><div class="ce">${PLAT_EMOJI[i % PLAT_EMOJI.length]}</div>PLATINUM CARD · +5% EXP forever</div>`)
       : `<div class="gcard gplat no"><div class="ce">🔒</div>collect all 9 — platinum card: +5% EXP forever</div>`;
     gachaBody.innerHTML = html + `</div>`;
     gachaRoll.style.display = "none";
@@ -3058,9 +3183,11 @@ function renderGachaSummary() {
   gachaTitle.textContent = `Results — ${s.rolls} rolls 💖`;
   let html = "";
   if (s.newCards.length) {
-    const cards = s.newCards.map(({ g, c }) =>
-      `<div class="galcard"><div class="ce">${cardEmoji(g, c)}</div>
-        <b>${girl(g).name}</b><span>img ${c + 1}</span></div>`).join("");
+    const cards = s.newCards.map(({ g, c }, i) =>
+      `<div class="galcard" data-i="${i}">${hasArt(g)
+        ? `<img class="galcardImg" src="${previewSrc(g, c)}" alt="">`
+        : `<div class="ce">${cardEmoji(g, c)}</div>`}
+        <b>${girl(g).name}</b></div>`).join("");
     html += `<div class="galwrap"><div class="galstrip" id="galStrip">${cards}</div></div>`;
     html += `<div class="sumrow">🎉 New cards: <b>${s.newCards.length}</b></div>`;
   } else {
@@ -3075,8 +3202,18 @@ function renderGachaSummary() {
   gachaRoll.style.display = "none";
   setGachaAd(false);
   gachaBack.textContent = "ok";
+  const wrap = gachaBody.querySelector(".galwrap");
+  if (wrap) wrap.addEventListener("click", e => {
+    if (galMoved) return; // это было перетаскивание, не клик
+    // через elementFromPoint, т.к. при mouse-drag setPointerCapture уводит target клика на .galwrap
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const card = el && el.closest(".galcard");
+    // листаем ВСЕ выигранные за серию карты (s.newCards), начиная с нажатой
+    if (card && card.dataset.i != null) openCardViewer(s.newCards, +card.dataset.i);
+  });
   if (s.newCards.length) startGalleryScroll();
 }
+let galMoved = false; // двигали ли галерею перетаскиванием → клик после драга не открывает просмотр
 function stopGalleryScroll() {
   if (galRAF) { cancelAnimationFrame(galRAF); galRAF = null; }
   clearTimeout(galResumeTimer); galResumeTimer = null;
@@ -3116,19 +3253,22 @@ function setupGalleryDrag(wrap) {
     clearTimeout(galResumeTimer);
     galResumeTimer = setTimeout(() => { galPaused = false; }, 2500);
   };
-  wrap.addEventListener("touchstart", pause, { passive: true });
+  const tStart = () => { pause(); galMoved = false; };
+  wrap.addEventListener("touchstart", tStart, { passive: true });
+  wrap.addEventListener("touchmove", () => { galMoved = true; }, { passive: true });
   wrap.addEventListener("touchend", resumeLater, { passive: true });
   wrap.addEventListener("touchcancel", resumeLater, { passive: true });
   let drag = null;
   wrap.addEventListener("pointerdown", e => {
     if (e.pointerType !== "mouse") return; // тач уже листается нативно
     drag = { x: e.clientX, left: wrap.scrollLeft };
+    galMoved = false;
     wrap.classList.add("grabbing");
     wrap.setPointerCapture(e.pointerId);
     pause();
   });
   wrap.addEventListener("pointermove", e => {
-    if (drag) wrap.scrollLeft = drag.left - (e.clientX - drag.x);
+    if (drag) { if (Math.abs(e.clientX - drag.x) > 6) galMoved = true; wrap.scrollLeft = drag.left - (e.clientX - drag.x); }
   });
   const end = () => { if (drag) { drag = null; wrap.classList.remove("grabbing"); resumeLater(); } };
   wrap.addEventListener("pointerup", end);
@@ -3176,11 +3316,14 @@ function revealCard(g, c, cell) {
     doubleFx(gain);
     emojiBurst("🧿", 22, true);
     floatAt(document.getElementById("rebirthBtn"), `+${fmt(gain)} 🧿`, "#9fd64e"); // EXP-флоат над кнопкой Ascension (бар убран, v19.1)
-    gachaLog.textContent = `💥 DOUBLE! «img ${c + 1}» already owned — consolation +${fmt(gain)} 🧿 EXP`;
+    gachaLog.textContent = `💥 DOUBLE! «card ${c + 1}» already owned — consolation +${fmt(gain)} 🧿 EXP`;
   } else {
     S.cards[g][c] = 1;
     cell.classList.remove("no");
-    cell.innerHTML = `<div class="ce">${cardEmoji(g, c)}</div>img ${c + 1}`;
+    cell.classList.add("own", "new"); cell.dataset.c = c; // новая, ещё не просмотрена → подсветка
+    cell.innerHTML = hasArt(g)
+      ? `<img class="gcardImg" src="${previewSrc(g, c)}" alt="">`
+      : `<div class="ce">${cardEmoji(g, c)}</div>`;
     cell.classList.add("reveal");
     emojiBurst(cardEmoji(g, c), 12, false, cell); // VFX выигрыша карточки
     for (let k = 0; k < 4; k++) sCoin(k);
@@ -3190,7 +3333,7 @@ function revealCard(g, c, cell) {
       gachaLog.textContent = `⭐ PLATINUM CARD: ${girl(g).name}! +5% EXP forever!`;
       bigCelebrate(); emojiBurst("⭐", 24, true);
     } else {
-      gachaLog.textContent = `🎉 NEW: «img ${c + 1}» ${cardEmoji(g, c)}`;
+      gachaLog.textContent = `🎉 NEW: «card ${c + 1}» ${cardEmoji(g, c)}`;
     }
   }
   update(); save();
@@ -3199,7 +3342,7 @@ function revealCard(g, c, cell) {
     // страница собрана этим роллом → текущей становится следующая, чтобы крутить дальше
     if (pageComplete(Math.floor(g / 9))) gachaPage = inProgressPage();
     renderGacha();
-    if (TUT.step === "gachaRoll") tutGoto("gachaClose");
+    if (TUT.step === "gachaRoll") tutGoto("gachaView"); // выиграл карту → учим открыть фуллсайз
   }, 900); // дать анимации доиграть
 }
 
@@ -3215,9 +3358,26 @@ gachaBody.addEventListener("click", e => {
   // стрелки ◀▶ — листание страниц девочек
   const nav = e.target.closest(".gnavBtn");
   if (nav) { if (!nav.disabled) { gachaPage += +nav.dataset.nav; renderGacha(); } return; }
+  // тап по открытой карте в коллекции девочки → полноразмерный просмотр (только если есть арт)
+  const card = e.target.closest(".gcard.own");
+  if (card && gachaGirl !== null && hasArt(gachaGirl)) {
+    const list = [];
+    for (let k = 0; k < 9; k++) if (S.cards[gachaGirl][k] > 0) list.push({ g: gachaGirl, c: k });
+    openCardViewer(list, list.findIndex(x => x.c === +card.dataset.c));
+    return;
+  }
   const t = e.target.closest(".girl");
   if (!t) return;
   gachaGirl = +t.dataset.g; gachaLog.textContent = "";
+  // первое открытие девочки → немного опыта (стимул заглянуть в новую коллекцию)
+  ensureGirl(gachaGirl);
+  if (!S.gSeen[gachaGirl]) {
+    S.gSeen[gachaGirl] = true;
+    const gain = viewExp();
+    S.exp += gain;
+    gachaLog.textContent = `✨ NEW girl! +${fmt(gain)} 🧿 EXP`;
+    emojiBurst("🧿", 8, false, t); vibrate(20); update(); save();
+  }
   renderGacha();
 });
 gachaBack.addEventListener("click", () => {
@@ -3233,6 +3393,46 @@ gachaBack.addEventListener("click", () => {
 // тап по окну гачи во время анимации (колеси/монтажа) — пропустить к результату (v13).
 // клики по тайлам/кнопкам гачи всплывают сюда (их обработчики выходят при rolling)
 gachaOverlay.addEventListener("click", () => { if (rolling && gachaSkipFn) gachaSkipFn(); });
+
+// ── полноразмерный просмотр карт девочки: стрелки листают её ОТКРЫТЫЕ карты, close закрывает ──
+const cardViewer = document.getElementById("cardViewer");
+const cvImg = document.getElementById("cvImg"), cvCap = document.getElementById("cvCap"), cvGain = document.getElementById("cvGain");
+const cvPrev = document.getElementById("cvPrev"), cvNext = document.getElementById("cvNext");
+// cvList — массив {g,c}: что листать стрелками. Из коллекции девочки = её открытые карты;
+// из окна результатов = ВСЕ выигранные за серию круток карты (могут быть разных девочек)
+let cvList = [], cvPos = 0;
+function cvRender() {
+  const { g, c } = cvList[cvPos];
+  cvImg.src = fullSrc(g, c);
+  cvCap.textContent = girl(g).name; // без «img N» — только имя
+  cvPrev.disabled = cvPos <= 0;
+  cvNext.disabled = cvPos >= cvList.length - 1;
+  // первый просмотр этой карты в полный размер → немного опыта (листая, собираем за каждую)
+  ensureGirl(g);
+  if (!S.cSeen[g][c]) {
+    S.cSeen[g][c] = true;
+    const gain = viewExp();
+    S.exp += gain;
+    cvGain.textContent = `+${fmt(gain)} 🧿 EXP`; // текстом поверх картинки
+    cvGain.classList.remove("show"); void cvGain.offsetWidth; cvGain.classList.add("show");
+    emojiBurst("🧿", 10, false, cardViewer); vibrate(20); update(); save(); // частицы по центру экрана
+  }
+}
+// list — массив {g,c}; startIdx — с какой карты открыть
+function openCardViewer(list, startIdx) {
+  if (!list || !list.length) return;
+  cvList = list; cvPos = Math.max(0, Math.min(startIdx | 0, list.length - 1));
+  cardViewer.classList.add("show"); // показать ДО рендера — иначе у элементов нет rect (частицы летели в угол)
+  cvRender();
+  if (TUT.step === "gachaView") tutGoto("gachaViewClose"); // тутор: карта открыта → учим закрыть
+}
+cvPrev.addEventListener("click", () => { if (cvPos > 0) { cvPos--; cvRender(); } });
+cvNext.addEventListener("click", () => { if (cvPos < cvList.length - 1) { cvPos++; cvRender(); } });
+document.getElementById("cvClose").addEventListener("click", () => {
+  cardViewer.classList.remove("show");
+  renderGacha(); // обновить подсветку «new» — просмотренные карты больше не светятся
+  if (TUT.step === "gachaViewClose") tutGoto("gachaClose"); // тутор: посмотрели → дальше
+});
 
 // единый ролл (цена уже списана вызывающим): колеса девочка → карточка
 function runRoll(burstEmoji, burstEl) {
@@ -3640,7 +3840,7 @@ function tutShow(target, hint, opts = {}) {
   const pad = opts.pad != null ? opts.pad : 8; // без ?? — компат со старыми webview (Chrome <80)
   const b = target.getBoundingClientRect ? target.getBoundingClientRect() : target;
   const r = { left: b.left - pad, top: b.top - pad, width: b.width + pad * 2, height: b.height + pad * 2 };
-  tutHole.style.display = "";
+  tutHole.style.display = opts.noDim ? "none" : ""; // noDim: без прожектора-затемнения (цель и так на виду)
   tutHole.style.left = r.left + "px"; tutHole.style.top = r.top + "px";
   tutHole.style.width = r.width + "px"; tutHole.style.height = r.height + "px";
   // блокеры: нажимается ТОЛЬКО цель. Если задан pawEl — кликабелен лишь он
@@ -3732,6 +3932,19 @@ function tutRender() {
       tutShow(gachaOverlay.querySelector(".sheet"), "Tap ROLL — win a card!",
         { paw: true, pawEl: gachaRoll });
       break;
+    case "gachaView": {
+      // выиграл первую карту → научить открыть её в полный размер (тап по превью)
+      const cell = gachaBody.querySelector(".gcard.own");
+      if (cell) tutShow(cell, "Tap your new card 💖 — see her up close!", { paw: true });
+      else tutGoto("gachaClose"); // подстраховка: превью не нашлось — не застреваем
+      break;
+    }
+    case "gachaViewClose":
+      // карта открыта на весь экран → любуемся и закрываем (стрелки ‹ › листают, когда карт больше).
+      // noDim: не затемняем — карту, которую только что открыли, видно во всей красе
+      tutShow(document.getElementById("cvClose"), "She's all yours 💖 Tap Close to go back",
+        { paw: true, noDim: true });
+      break;
     case "gachaClose":
       tutShow(gachaBack,
         "The card is yours — first of 9! A full set = platinum +5% EXP forever. Back to the reels");
@@ -3811,6 +4024,16 @@ function tutEnd() {
   S.tutDone = true; save();
   say("idle", "😺");
 }
+// ДЕБАГ-пропуск (десктоп не проходит тутор): 5 тапов в верхнюю треть экрана во время
+// туториала скипают его целиком → обычная игра. capture, чтобы тап ловился раньше блокеров
+let tutSkipTaps = 0, tutSkipTimer = null;
+window.addEventListener("pointerdown", e => {
+  if (!TUT.active || e.clientY > innerHeight / 3) { tutSkipTaps = 0; return; }
+  tutSkipTaps++;
+  clearTimeout(tutSkipTimer);
+  tutSkipTimer = setTimeout(() => { tutSkipTaps = 0; }, 1500);
+  if (tutSkipTaps >= 5) { tutSkipTaps = 0; tutEnd(); }
+}, true);
 // общий конец мини-туториала: чистит рантайм, НЕ трогает tutDone (флаг — на вызывающем)
 function miniTutEnd() {
   TUT.active = false; TUT.step = null; TUT.force = null;
