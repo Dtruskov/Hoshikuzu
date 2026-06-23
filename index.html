@@ -1198,7 +1198,14 @@
    (2) рисуем текст любой ошибки прямо на экране, чтобы её было видно на
    устройстве без доступа к консоли. Снять можно удалив этот блок. */
 (function () {
+  // рекламный «шум» (no-fill / блок не активен / нет рекламы) — ОЖИДАЕМ, не баг: каскад
+  // showAd сам деградирует к следующей сети. Не пугаем им юзера/ревьюера на экране, но
+  // реальные ошибки (и диагностику загрузки) показываем. poco-load-research.md.
+  function isAdNoise(s) {
+    return /adsgram|monetag|telega|libtl|is not active|Failed to load ad|no ad|block \d+/i.test(s || "");
+  }
   function showErr(title, detail) {
+    if (isAdNoise(title) || isAdNoise(detail)) return;
     try {
       var d = document.getElementById("__errbox");
       if (!d) {
@@ -1360,7 +1367,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.33 · 2026-06-24 · ad cascade Adsgram → Monetag → Telega.io (all async SDKs)";
+const BUILD = "Hoshikuzu v22.34 · 2026-06-24 · quiet ad-network no-fill noise in error overlay + robust showAd cascade";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1763,9 +1770,11 @@ function showTelega(reward, fail) {
 // Каскад показа (ads.md §2): Adsgram (основной, на ревью) → Monetag → Telega.io → тест-выдача.
 // Каждая следующая сеть пробуется, только если предыдущая недоступна/без фила. Награда — при досмотре.
 function showAd(reward, fail) {
-  if (!adController) { showMonetag(reward, fail); return; } // Adsgram недоступен → Monetag
-  adController.show().then(() => reward())                  // resolve = досмотр до конца
-    .catch(() => showMonetag(reward, fail));                // reject (no-fill/скип) → следующий
+  try {
+    if (!adController) { showMonetag(reward, fail); return; } // Adsgram недоступен → Monetag
+    adController.show().then(() => reward())                  // resolve = досмотр до конца
+      .catch(() => showMonetag(reward, fail));                // reject (no-fill/скип/блок не активен) → следующий
+  } catch (e) { showMonetag(reward, fail); }                  // синхронный выброс SDK → не ломаем каскад
 }
 
 /* ═══════════ Telegram Stars — оплата вместо рекламы (monetization.md, stars.md) ═══════════ */
