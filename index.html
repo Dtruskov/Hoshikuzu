@@ -1345,7 +1345,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.30 · 2026-06-24 · 5 graphics tiers (Pure…Cosmos) + ⚙ settings (gfx/sound/vibration/version) + swap first/last gacha page";
+const BUILD = "Hoshikuzu v22.31 · 2026-06-24 · Adsgram release block 36038";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1689,7 +1689,7 @@ const vibrate = arg => {
 // BLOCK ID из кабинета Adsgram (Reward-юнит). ВКЛЮЧЕНО (v16.2): реклама активна в TG.
 // Вне Telegram (десктоп) / если SDK не загрузился — 🎬-точки деградируют к тест-выдаче
 // (мгновенно), чтобы прототип открывался с диска. Сменить → вписать новый ID сюда.
-const ADSGRAM_BLOCK_ID = "35299";
+const ADSGRAM_BLOCK_ID = "36038"; // «Hoshikuzu - release» Reward-юнит (2026-06-24; прежний 35299 заменён)
 let adController = null;
 // SDK грузится async (см. <head>) → может прийти РАНЬШЕ или ПОЗЖЕ этого кода.
 // Идемпотентный init покрывает обе гонки: зовём сейчас (если уже загружен) и
