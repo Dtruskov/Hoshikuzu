@@ -4780,7 +4780,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.41 · 2026-06-24 · Перф: дефолт Spark (слабым Pure), FPS-автодетект→Pure · кубики: матрица 1×/кадр, грани без клиппинга, шкала Quality 1–5 + моушн-блюр";
+const BUILD = "Hoshikuzu v22.42 · 2026-06-24 · Кубики: статика всегда крисп (≥ур.3), Quality рулит силой моушн-блюра (Q1 — макс. смаз)";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -4867,19 +4867,22 @@ const gfxAuto = lsGet(GFX_KEY) == null; // тир НЕ выбран игроко
 // (запрос автора v22.41). 5 — крисп (полный DPR, «как раньше»), 1 — минимум. Низкое качество =
 // низкое разрешение буфера → браузер растягивает его со сглаживанием: дешевле + «моушн-блюр».
 const DQ_KEY = "hoshikuzu_dquality";
-const DQ_DPR = [0, 0.5, 0.75, 1, 1.5, 2];      // индекс = Quality (1..5) → DPR буфера костей в покое
-const DQ_SUB = ["", "lowest · blurry, fastest", "low", "balanced", "high", "max · crisp"];
+// Quality управляет СИЛОЙ моушн-блюра (DPR буфера костей В ДВИЖЕНИИ). В ПОКОЕ кубик всегда
+// рендерится не ниже уровня 3 (dpr 1) — результат читаем при любом Quality (запрос автора v22.42).
+const DQ_DPR    = [0, 0.5, 0.75, 1, 1.5, 2];    // опорный DPR по уровню 1..5 (для покоя: max(Q,3))
+const DQ_MOTION = [0, 0.3, 0.5, 0.72, 1.1, 1.6];// DPR в ДВИЖЕНИИ по Quality: Q1 — сильный смаз, Q5 — почти крисп
+const DQ_SUB = ["", "max motion blur · fastest", "strong motion blur", "balanced", "light blur", "crisp · no blur"];
 function dqInit() {
   const v = lsGet(DQ_KEY); if (v != null) { const n = +v; if (n >= 1 && n <= 5) return n; }
   const dm = navigator.deviceMemory || 0, hc = navigator.hardwareConcurrency || 0;
-  return ((dm && dm <= 2) || (hc && hc <= 2)) ? 1 : 3; // слабые → Q1, остальные → Q3 (dpr 1)
+  return ((dm && dm <= 2) || (hc && hc <= 2)) ? 1 : 3; // слабые → Q1, остальные → Q3
 }
 let dQuality = dqInit();
-let diceMotion = false;                         // во время вращения буфер ещё ниже → блюр + перф
+let diceMotion = false;
 function diceDpr() {
-  let d = Math.min(DQ_DPR[dQuality] || 1, window.devicePixelRatio || 1); // не выше реального экрана
-  if (diceMotion) d *= 0.7;                      // доп. размытие/удешевление в полёте (фейк моушн-блюра)
-  return Math.max(0.34, d);
+  const dpr = window.devicePixelRatio || 1;
+  if (diceMotion) return Math.max(0.3, Math.min(DQ_MOTION[dQuality], dpr)); // блюр по Quality
+  return Math.min(DQ_DPR[Math.max(dQuality, 3)], dpr);                      // покой — не ниже уровня 3
 }
 function setDQuality(n) {
   dQuality = Math.max(1, Math.min(5, n)); lsSet(DQ_KEY, dQuality);
