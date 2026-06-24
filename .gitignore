@@ -1,4 +1,6 @@
 # Публикуем ТОЛЬКО index.html. Всё остальное (доки, reference.jpg, worker/, иконки) — приватно.
 /*
 !index.html
+!privacy.html
+!terms.html
 !.gitignore
