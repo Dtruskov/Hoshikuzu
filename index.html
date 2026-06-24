@@ -3916,6 +3916,8 @@
     box-shadow: 0 12px 40px rgba(0,0,0,.6), 0 0 30px rgba(150,90,230,.2);
   }
   .sheet h2 { font-size: 17px; color: #f3ecff; }
+  /* в профиле девочки имя — по центру рамки (стрелка ‹ слева не сдвигает его, она absolute) */
+  #gachaTitle.ctr { text-align: center; padding: 0 40px; }
   .sheet p { font-size: 13px; color: #c4b3e6; line-height: 1.45; }
   .sheet .big { font-size: 15px; color: #f0e7ff; font-weight: 700; }
 
@@ -4775,7 +4777,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.39 · 2026-06-24 · Гача: золотые рамки превью, стрелка назад, плавный свайп страниц, дозагрузка full · Adsgram-only (Monetag/Telega вырезаны)";
+const BUILD = "Hoshikuzu v22.40 · 2026-06-24 · Гача: имя в профиле девочки отцентрировано (фикс)";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -6728,6 +6730,7 @@ function renderGacha() {
     const navLeft = gachaPage > 0, navRight = gachaPage < lockPage;
     // страница-замок: следующая за текущей, ещё не открыта
     gachaBackArrow.style.display = "none";
+    gachaTitle.classList.remove("ctr");
     if (gachaPage === lockPage) {
       gachaBody.innerHTML = `<div class="gpage">` + gnavHtml(gachaPage, navLeft, navRight) +
         `<div class="gachaLock"><div class="lockico">🔒</div>
@@ -6772,6 +6775,7 @@ function renderGacha() {
     ensureGirl(i); // гарантируем cSeen[i]/cards[i] для рендера подсветки
     gachaTitle.textContent = girl(i).ava + " " + girl(i).name;
     gachaBackArrow.style.display = ""; // ‹ назад к странице коллекции (имя — центр)
+    gachaTitle.classList.add("ctr");
     let html = `<div class="cgrid">`;
     for (let c = 0; c < 9; c++) {
       const cnt = S.cards[i][c];
@@ -6801,6 +6805,7 @@ function renderGachaSummary() {
   const s = gachaSummary;
   gachaTitle.textContent = `Results — ${s.rolls} rolls 💖`;
   gachaBackArrow.style.display = "none";
+  gachaTitle.classList.remove("ctr");
   let html = "";
   if (s.newCards.length) {
     const cards = s.newCards.map(({ g, c }, i) =>
