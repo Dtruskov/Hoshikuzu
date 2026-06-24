@@ -4767,7 +4767,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.37 · 2026-06-24 · Telegram SDK инлайн (H1-фикс Poco) + 23 страницы арта (207 девочек) · Adsgram→Monetag→Telega";
+const BUILD = "Hoshikuzu v22.38 · 2026-06-24 · Тутор: тап в любом месте экрана засчитывается (фикс залипания) + одиночный ролл в туторе";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -7196,7 +7196,10 @@ function runRoll(burstEmoji, burstEl) {
 gachaRoll.addEventListener("click", e => {
   e.stopPropagation(); // не дать запускающему клику всплыть в скип-обработчик окна
   if (rolling || gachaGirl !== null || gachaPage !== inProgressPage()) return;
-  const cost = rollCost(), k = Math.min(MULTI_MAX, Math.floor(S.harda / cost));
+  const cost = rollCost(), aff = Math.floor(S.harda / cost);
+  // в туторе всегда 1 ролл: мульти уводит на экран итогов «Results — N rolls»,
+  // а шаги gachaView/gachaClose ждут одиночную карту → тутор залипал (баг 2026-06-24)
+  const k = TUT.active ? Math.min(1, aff) : Math.min(MULTI_MAX, aff);
   if (k < 1) return;
   if (k === 1) { S.harda -= cost; runRoll("💖", gachaRoll); }
   else runMulti(k);
@@ -7562,21 +7565,14 @@ function tutShow(target, hint, opts = {}) {
   tutHole.style.display = opts.noDim ? "none" : ""; // noDim: без прожектора-затемнения (цель и так на виду)
   tutHole.style.left = r.left + "px"; tutHole.style.top = r.top + "px";
   tutHole.style.width = r.width + "px"; tutHole.style.height = r.height + "px";
-  // блокеры: нажимается ТОЛЬКО цель. Если задан pawEl — кликабелен лишь он
-  // (дырка может быть шире, чтобы читался текст вокруг), иначе вся дырка;
-  // tapAnywhere — наоборот, один блокер на весь экран (тап = продолжить)
+  // блокеры: ОДИН на весь экран — любой тап засчитывается как нужный (tutAdvance).
+  // Раньше блокеры оставляли «дырку» на цели, и при сбитых координатах (асинхронная
+  // загрузка арта, мульти-ролл, ещё не устаканившийся layout) реальная кнопка
+  // оказывалась под блокером → тутор залипал. Теперь позиция дырки/пальца — чисто
+  // визуальная подсказка, проходимость от неё не зависит (запрос автора 2026-06-24,
+  // tutorial.md §0 п.2).
   tutBlocks.style.display = "";
-  let c = r;
-  if (opts.pawEl) {
-    const cb = opts.pawEl.getBoundingClientRect();
-    c = { left: cb.left - 4, top: cb.top - 4, width: cb.width + 8, height: cb.height + 8 };
-  }
-  const rects = opts.tapAnywhere
-    ? [[0, 0, innerWidth, innerHeight], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
-    : [[0, 0, innerWidth, c.top],
-       [0, c.top + c.height, innerWidth, innerHeight - c.top - c.height],
-       [0, c.top, c.left, c.height],
-       [c.left + c.width, c.top, innerWidth - c.left - c.width, c.height]];
+  const rects = [[0, 0, innerWidth, innerHeight], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
   tutBlockEls.forEach((el, i) => {
     const [x, y, w, h] = rects[i];
     el.style.left = x + "px"; el.style.top = y + "px";
@@ -7725,16 +7721,37 @@ function tutOnSpinEnd() {
     } else setTimeout(tutRender, 700);
   }
 }
-// «тапни, чтобы продолжить» — клик по блокеру (всплывает с .tutBlock).
-// rebirthTut кончается НЕ тут, а по настоящему тапу кнопки перерождения (см. её обработчик)
+// ЛЮБОЙ тап во время туториала → выполнить «нужное» действие текущего шага (запрос
+// автора 2026-06-24, фикс залипания тутора). Цель под полноэкранным блокером, поэтому
+// действие проигрываем программно: .click() по реальной кнопке (тот же путь и тот же
+// tutGoto, что и при настоящем нажатии), а инфо-шаги завершаем напрямую.
+function tutAdvance() {
+  switch (TUT.step) {
+    case "swipe1":
+    case "swipe2":         throwBtn.click(); break;                       // бросок → спин → tutOnSpinEnd
+    case "upgOpen":        document.getElementById("upgBtn").click(); break;
+    case "upgBuy":         document.getElementById("upgHarda").click(); break;
+    case "upgClose":       document.getElementById("upgClose").click(); break;
+    case "gachaOpen":      document.getElementById("collBtn").click(); break;
+    case "gachaRoll":      gachaRoll.click(); break;                       // в туторе всегда 1 ролл (см. обработчик)
+    case "gachaView": {
+      const cell = gachaBody.querySelector(".gcard.own");
+      if (cell) cell.click(); else tutGoto("gachaClose");                 // превью нет — не застреваем
+      break;
+    }
+    case "gachaViewClose": document.getElementById("cvClose").click(); break;
+    case "gachaClose":     gachaBack.click(); break;
+    case "rebirthTut":     document.getElementById("rebirthBtn").click(); break;
+    case "expIntro":       tutEnd(); break;          // конец основного туториала (v15)
+    case "autoReward":     autoTutEnd(); break;      // мини-тутор автоспина (2-е перерождение)
+    case "shopTut":        shopTutEnd(); break;      // мини-тутор магазина
+    case "wheelTut":       wheelTutEnd(); break;     // мини-тутор колеси (3-е перерождение)
+  }
+}
+// тап по блокеру (всплывает с .tutBlock) — единая точка «засчитать клик куда надо»
 tutBlocks.addEventListener("click", () => {
   if (TUT.rendered !== TUT.step) return; // шаг ещё не отрисован — двойной тап не проскакивает
-  switch (TUT.step) {
-    case "expIntro":    tutEnd(); break;          // конец основного туториала (v15)
-    case "autoReward":  autoTutEnd(); break;      // мини-тутор автоспина (2-е перерождение)
-    case "shopTut":     shopTutEnd(); break;      // мини-тутор магазина
-    case "wheelTut": wheelTutEnd(); break;  // мини-тутор колеси (3-е перерождение)
-  }
+  tutAdvance();
 });
 function tutEnd() {
   TUT.active = false; TUT.step = null; TUT.force = null;
