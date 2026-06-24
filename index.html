@@ -3413,21 +3413,6 @@
 <script async src="https://sad.adsgram.ai/js/sad.min.js"
         onload="window.__adsgramReady&&window.__adsgramReady()"
         onerror="window.__adsgramFailed=1"></script>
-<!-- Monetag rewarded (ads.md, фоллбэк-сеть, выплата в USDT). ВАЖНО: грузим ASYNC, НЕ
-     блокирующим тегом как в их инструкции — домен libtl.com сторонний и на части
-     устройств/сетей может виснуть → парсер HTML встанет намертво (тот же риск, что
-     описан выше для adsgram и в poco-load-research.md H1). data-sdk создаёт глобальную
-     функцию window.show_11193024(...); зовём её лениво по клику, init не нужен.
-     Не загрузился — фоллбэк не сработает, showAd деградирует к тест-выдаче. -->
-<script async src="https://libtl.com/sdk.js" data-zone="11193024" data-sdk="show_11193024"
-        onerror="window.__monetagFailed=1"></script>
-<!-- Telega.io (ads.md, 3-й фоллбэк). ФОРМАТ: баннер/нативка (не классический rewarded —
-     ad_show может резолвиться по показу, см. showTelega/ads.md). Грузим ASYNC (НЕ блокирующим
-     тегом из инструкции) — тот же risk-класс, что adsgram/monetag (poco-load-research.md H1).
-     Init контроллера — идемпотентно в основном скрипте (window.__telegaReady на onload). -->
-<script async src="https://inapp.telega.io/sdk/v1/sdk.js"
-        onload="window.__telegaReady&&window.__telegaReady()"
-        onerror="window.__telegaFailed=1"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
@@ -4115,6 +4100,22 @@
     letter-spacing: .5px; color: #2b2540; text-shadow: 0 1px 0 rgba(255,255,255,.55);
   }
 
+  /* ── золотая премиум-рамка превью (выигрыш + коллекция девочки) ── */
+  /* фото в металлической рамке со свечением, отделено от подписи (запрос автора 2026-06-24) */
+  .cardframe.gold {
+    width: 100%; box-sizing: border-box; padding: 3px; border-radius: 11px; display: block;
+    background: linear-gradient(135deg,#fbe7a1 0%,#c89a3c 24%,#fff6cf 50%,#b8862c 74%,#f4e092 100%);
+    box-shadow: 0 0 14px rgba(255,196,77,.55), 0 4px 12px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.65);
+  }
+  .cardframe.gold .gcardImg, .cardframe.gold .galcardImg {
+    width: 100%; aspect-ratio: 3/2; object-fit: cover; border-radius: 8px; display: block;
+  }
+  /* подпись-плашка под фото (окно результатов): имя визуально отделено от картинки */
+  .cardname {
+    margin-top: 7px; background: #1a1034; border-radius: 8px; padding: 5px 6px;
+    color: #ece6ff; font-weight: 700; font-size: 13px; text-align: center; line-height: 1.2;
+  }
+
   /* ── полноразмерный просмотр карточки (внутри коллекции девочки) ── */
   #cardViewer { flex-direction: column; gap: 14px; padding: 16px; z-index: 20; }
   #cvStage { position: relative; display: flex; align-items: center; justify-content: center; width: min(94%, 460px); }
@@ -4149,7 +4150,15 @@
 
   /* гача-окно одинакового размера на всех вкладках (крутки / замок / карточки), v13:
      фикс-высота, скроллится только тело — окно не «прыгает» при переключении */
-  #gachaOverlay .sheet { width: min(94%, 430px); height: min(92vh, 720px); overflow: hidden; }
+  #gachaOverlay .sheet { position: relative; width: min(94%, 430px); height: min(92vh, 720px); overflow: hidden; }
+  /* ‹ назад к странице коллекции — только в профиле девочки (имя остаётся по центру) */
+  .gBackArrow {
+    position: absolute; left: 10px; top: 10px; z-index: 2;
+    border: none; background: rgba(20,12,40,.6); color: #fff; font-family: inherit;
+    width: 34px; height: 34px; border-radius: 50%; font-size: 26px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; padding-bottom: 3px;
+  }
+  .gBackArrow:active { transform: scale(.92); }
   /* padding-инсет (v15.2): #gachaBody — скролл-контейнер (overflow-y:auto → x клипает),
      светящаяся рамка крайних тайлов (.sel/.done/.gplat, box-shadow до 16px) обрезалась
      краем окна. Инсет ≥ радиуса свечения → рамка помещается в padding-box, не режется */
@@ -4194,7 +4203,6 @@
   }
   .galcard:active { transform: scale(.97); }
   .galcard .ce { font-size: 64px; line-height: 1.3; }
-  .galcard b { font-size: 13px; color: #e8e8ea; }
 
   /* ── гача-колеса ── */
   .girl.sel, .gcard.sel { box-shadow: 0 0 0 2px #ffd34d, 0 0 16px #ffd34d; }
@@ -4493,6 +4501,7 @@
 
 <div class="overlay" id="gachaOverlay">
   <div class="sheet scroll">
+    <button class="gBackArrow" id="gachaBackArrow" style="display:none">‹</button>
     <h2 id="gachaTitle">Collection 💖</h2>
     <div id="gachaBody"></div>
     <button class="btn accent" id="gachaRoll" style="display:none">—</button>
@@ -4598,11 +4607,10 @@
    (2) рисуем текст любой ошибки прямо на экране, чтобы её было видно на
    устройстве без доступа к консоли. Снять можно удалив этот блок. */
 (function () {
-  // рекламный «шум» (no-fill / блок не активен / нет рекламы) — ОЖИДАЕМ, не баг: каскад
-  // showAd сам деградирует к следующей сети. Не пугаем им юзера/ревьюера на экране, но
-  // реальные ошибки (и диагностику загрузки) показываем. poco-load-research.md.
+  // рекламный «шум» Adsgram (no-fill / нет рекламы) — ОЖИДАЕМ, не баг: showAd деградирует
+  // к fail() без награды. Не пугаем им юзера на экране, но реальные ошибки показываем.
   function isAdNoise(s) {
-    return /adsgram|monetag|telega|libtl|is not active|Failed to load ad|no ad|block \d+/i.test(s || "");
+    return /adsgram|is not active|Failed to load ad|no ad|block \d+/i.test(s || "");
   }
   function showErr(title, detail) {
     if (isAdNoise(title) || isAdNoise(detail)) return;
@@ -4767,7 +4775,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.38 · 2026-06-24 · Тутор: тап в любом месте экрана засчитывается (фикс залипания) + одиночный ролл в туторе";
+const BUILD = "Hoshikuzu v22.39 · 2026-06-24 · Гача: золотые рамки превью, стрелка назад, плавный свайп страниц, дозагрузка full · Adsgram-only (Monetag/Telega вырезаны)";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -5133,52 +5141,19 @@ initAdsgram();
 // Вне Adsgram (десктоп / BLOCK_ID не проставлен / SDK не загрузился) — мгновенная
 // выдача через reward() (тест-режим, как было до подключения). На этапе 1 это ок:
 // реальных денег у игрока нет (ads.md §2). К этапу 2 — серверный postback.
-// ADSGRAM_ON=true: Adsgram снова ОСНОВНОЙ (запрос автора, v22.36). Блок 36038 на модерации —
-// чтобы Adsgram его аппрувнул, приложение должно реально ЗВАТЬ блок (ревьюер видит интеграцию).
-// ⚠️ пока блок не активен, SDK Adsgram может показывать нативный попап «block not active» —
-// это цена прохождения модерации; уйдёт после аппрува. Каскад при no-fill идёт к Monetag/Telega.
+// ADSGRAM_ON=true: Adsgram прошёл модерацию и является ЕДИНСТВЕННОЙ рекламной сетью
+// (Monetag и Telega вырезаны 2026-06-24 после аппрува блока 36038).
 const ADSGRAM_ON = true;
-const MONETAG_ZONE = "11193024";
-const TELEGA_TOKEN = "3fe4fac1-3570-4c93-9760-843be73322c1";
-const TELEGA_BLOCK = "ea9f856a-e564-4118-bcf0-92d1dbbcae4f";
-let telegaAds = null;
-function initTelega() {
-  if (telegaAds) return;
-  try {
-    if (window.TelegaIn && window.TelegaIn.AdsController) {
-      telegaAds = window.TelegaIn.AdsController.create_miniapp({ token: TELEGA_TOKEN });
-    }
-  } catch (e) { telegaAds = null; }
-}
-window.__telegaReady = initTelega;
-initTelega();
-// Каждый провайдер: нет SDK → next() (пропустить); есть → показать, reward при досмотре,
-// next при reject (no-fill/скип). ⚠️ Telega — баннер/нативка: ad_show может резолвиться по
-// показу, не по полному досмотру (награда «легко») — проверить на устройстве (ads.md).
-function tryTelega(reward, next) {
-  if (!telegaAds) { next(); return; }
-  try { telegaAds.ad_show({ adBlockUuid: TELEGA_BLOCK }).then(() => reward()).catch(() => next()); }
-  catch (e) { next(); }
-}
-function tryMonetag(reward, next) {
-  const fn = window["show_" + MONETAG_ZONE];               // глобал show_<zone> от SDK (data-sdk)
-  if (typeof fn !== "function") { next(); return; }
-  try { fn().then(() => reward()).catch(() => next()); }
-  catch (e) { next(); }
-}
 function tryAdsgram(reward, next) {
   if (!ADSGRAM_ON || !adController) { next(); return; }
   try { adController.show().then(() => reward()).catch(() => next()); }
   catch (e) { next(); }
 }
-// Каскад (ads.md §2): приоритет Adsgram (основной, на модерации) → Monetag → Telega → fail.
-// Награда — ТОЛЬКО при успешном показе. Если ни один SDK не загружен (десктоп/вне TG) — нет
-// смысла в каскаде, сразу тест-выдача reward() (как было до подключения; этап 1, ads.md).
+// Награда — ТОЛЬКО при успешном показе. Если SDK не загружен (десктоп/вне TG) — нет
+// смысла показывать, сразу тест-выдача reward() (как было до подключения; этап 1, ads.md).
 function showAd(reward, fail) {
-  const monetagFn = window["show_" + MONETAG_ZONE];
-  const adsAvailable = (ADSGRAM_ON && adController) || (typeof monetagFn === "function") || telegaAds;
-  if (!adsAvailable) { reward(); return; }                 // ни одной сети (десктоп) → тест-выдача
-  tryAdsgram(reward, () => tryMonetag(reward, () => tryTelega(reward, () => { if (fail) fail(); })));
+  if (!(ADSGRAM_ON && adController)) { reward(); return; } // нет сети (десктоп) → тест-выдача
+  tryAdsgram(reward, () => { if (fail) fail(); });
 }
 
 /* ═══════════ Telegram Stars — оплата вместо рекламы (monetization.md, stars.md) ═══════════ */
@@ -6682,6 +6657,14 @@ const avatarSrc  = gi => artDir(gi) + "avatar.webp";
 const previewSrc = (gi, c) => artDir(gi) + "preview/" + (c + 1) + ".webp";
 const fullSrc    = (gi, c) => artDir(gi) + "full/" + (c + 1) + ".webp";
 const platSrc    = gi => artDir(gi) + "platinum.webp";
+// фоновая дозагрузка full-версий выигранных карт сразу после ролла → в просмотрщике
+// (cvImg) листание идёт мгновенно, без подгрузки из R2 (запрос автора 2026-06-24).
+// держим ссылки, чтобы запрос не отменился до завершения загрузки.
+const _prefetched = [];
+function prefetchFull(list) {
+  list.forEach(({ g, c }) => { const im = new Image(); im.src = fullSrc(g, c); _prefetched.push(im); });
+  if (_prefetched.length > 60) _prefetched.splice(0, _prefetched.length - 60); // не копим бесконечно
+}
 
 const gachaOverlay = document.getElementById("gachaOverlay");
 const gachaTitle = document.getElementById("gachaTitle"), gachaBody = document.getElementById("gachaBody");
@@ -6692,6 +6675,7 @@ const gachaStars = document.getElementById("gachaStars");
 const gachaAltRow = document.getElementById("gachaAltRow");
 const setGachaAd = show => { gachaAltRow.style.display = show ? "flex" : "none"; };
 const gachaBack = document.getElementById("gachaBack");
+const gachaBackArrow = document.getElementById("gachaBackArrow");
 let gachaGirl = null;    // null = галерея страницы, число = глобальный индекс девочки (её карточки)
 let gachaPage = 0;       // какую страницу (9 девочек) смотрим; стрелки ◀▶ переключают (v13)
 let gachaSummary = null; // итоги мульти-ролла — показываются вместо галереи
@@ -6743,16 +6727,17 @@ function renderGacha() {
     gachaTitle.textContent = `Collection 💖 · +${platPct}% EXP forever`;
     const navLeft = gachaPage > 0, navRight = gachaPage < lockPage;
     // страница-замок: следующая за текущей, ещё не открыта
+    gachaBackArrow.style.display = "none";
     if (gachaPage === lockPage) {
-      gachaBody.innerHTML = gnavHtml(gachaPage, navLeft, navRight) +
+      gachaBody.innerHTML = `<div class="gpage">` + gnavHtml(gachaPage, navLeft, navRight) +
         `<div class="gachaLock"><div class="lockico">🔒</div>
-          Collect everyone on page ${inProg + 1} — and new ones unlock here ✨</div>`;
+          Collect everyone on page ${inProg + 1} — and new ones unlock here ✨</div></div>`;
       gachaRoll.style.display = "none"; setGachaAd(false);
       gachaBack.textContent = "close";
       return;
     }
     ensurePage(gachaPage);
-    gachaBody.innerHTML = gnavHtml(gachaPage, navLeft, navRight) + `<div class="ggrid">` +
+    gachaBody.innerHTML = `<div class="gpage">` + gnavHtml(gachaPage, navLeft, navRight) + `<div class="ggrid">` +
       Array.from({ length: 9 }, (_, pos) => {
         const i = gachaPage * 9 + pos, gd = girl(i);
         const owned = S.cards[i].filter(n => n > 0).length;
@@ -6764,7 +6749,7 @@ function renderGacha() {
           <div class="gavaWrap">${ava}</div>
           <div class="ginfo"><div class="gname">${gd.name}</div>
           <div class="gprog">${S.plat[i] ? "⭐ 10/10" : owned + "/9"}</div></div></div>`;
-      }).join("") + `</div>`;
+      }).join("") + `</div></div>`;
     // крутить можно ТОЛЬКО на текущей странице — на собранных кнопки нет (не фармить)
     // одна кнопка (v13.4): крутит сразу на ВСЕ доступные роллы (k); отдельной «1 ролл» нет
     const onActive = gachaPage === inProg;
@@ -6786,12 +6771,13 @@ function renderGacha() {
     const i = gachaGirl;
     ensureGirl(i); // гарантируем cSeen[i]/cards[i] для рендера подсветки
     gachaTitle.textContent = girl(i).ava + " " + girl(i).name;
+    gachaBackArrow.style.display = ""; // ‹ назад к странице коллекции (имя — центр)
     let html = `<div class="cgrid">`;
     for (let c = 0; c < 9; c++) {
       const cnt = S.cards[i][c];
       html += cnt > 0
         ? `<div class="gcard own${S.cSeen[i][c] ? "" : " new"}" data-c="${c}">${hasArt(i)
-            ? `<img class="gcardImg" src="${previewSrc(i, c)}" alt="">`
+            ? `<div class="cardframe gold"><img class="gcardImg" src="${previewSrc(i, c)}" alt=""></div>`
             : `<div class="ce">${cardEmoji(i, c)}</div>`}</div>`
         : `<div class="gcard no"><div class="gph">❓</div></div>`;
     }
@@ -6814,13 +6800,14 @@ let galRAF = null, galPaused = false, galResumeTimer = null;
 function renderGachaSummary() {
   const s = gachaSummary;
   gachaTitle.textContent = `Results — ${s.rolls} rolls 💖`;
+  gachaBackArrow.style.display = "none";
   let html = "";
   if (s.newCards.length) {
     const cards = s.newCards.map(({ g, c }, i) =>
       `<div class="galcard" data-i="${i}">${hasArt(g)
-        ? `<img class="galcardImg" src="${previewSrc(g, c)}" alt="">`
+        ? `<div class="cardframe gold"><img class="galcardImg" src="${previewSrc(g, c)}" alt=""></div>`
         : `<div class="ce">${cardEmoji(g, c)}</div>`}
-        <b>${girl(g).name}</b></div>`).join("");
+        <div class="cardname">${girl(g).name}</div></div>`).join("");
     html += `<div class="galwrap"><div class="galstrip" id="galStrip">${cards}</div></div>`;
     html += `<div class="sumrow">🎉 New cards: <b>${s.newCards.length}</b></div>`;
   } else {
@@ -6955,7 +6942,7 @@ function revealCard(g, c, cell) {
     cell.classList.remove("no");
     cell.classList.add("own", "new"); cell.dataset.c = c; // новая, ещё не просмотрена → подсветка
     cell.innerHTML = hasArt(g)
-      ? `<img class="gcardImg" src="${previewSrc(g, c)}" alt="">`
+      ? `<div class="cardframe gold"><img class="gcardImg" src="${previewSrc(g, c)}" alt=""></div>`
       : `<div class="ce">${cardEmoji(g, c)}</div>`;
     cell.classList.add("reveal");
     emojiBurst(cardEmoji(g, c), 12, false, cell); // VFX выигрыша карточки
@@ -6986,28 +6973,60 @@ document.getElementById("collBtn").addEventListener("click", () => {
   renderGacha(); gachaOverlay.classList.add("show");
   if (TUT.step === "gachaOpen") tutGoto("gachaRoll");
 });
-// горизонтальный свайп (моб.): влево → dir +1 (вперёд), вправо → -1 (назад). Игнорим
-// вертикальные жесты и мульти-тач; ставим guard, чтобы свайп не отработал ещё и как тап.
+// guard, чтобы свайп не отработал ещё и как тап по сетке
 let swipeGuardUntil = 0;
-function attachSwipe(el, onSwipe) {
-  let x0 = null, y0 = null, t0 = 0;
-  el.addEventListener("touchstart", e => {
-    if (e.touches.length !== 1) { x0 = null; return; }
-    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
+// плавный свайп между страницами коллекции (как галерея телефона): страница (.gpage)
+// тянется за пальцем, на отпускании — слайд к соседней или доводка назад. Вертикальный
+// жест отдаём скроллу тела. Только на странице-сетке (не профиль/итоги). v22.39
+(function gachaPageSwipe() {
+  let x0 = null, y0 = null, drag = false, w = 320, page = null, animating = false;
+  const grab = () => (page = gachaBody.querySelector(".gpage"));
+  const canSwipe = () => gachaGirl === null && !gachaSummary && !rolling && grab();
+  const snapBack = () => {
+    if (!page) return;
+    page.style.transition = "transform .2s ease, opacity .2s ease";
+    page.style.transform = "translateX(0)"; page.style.opacity = "1";
+  };
+  function slide(dir) { // dir +1 вперёд, -1 назад
+    const inProg = inProgressPage(), lockPage = inProg + 1, target = gachaPage + dir;
+    if (target < 0 || target > lockPage) { snapBack(); return; }
+    animating = true; swipeGuardUntil = Date.now() + 350;
+    const ww = w;
+    page.style.transition = "transform .16s ease, opacity .16s ease";
+    page.style.transform = `translateX(${dir > 0 ? -ww : ww}px)`; page.style.opacity = "0";
+    setTimeout(() => {
+      gachaPage = target; renderGacha();
+      const np = gachaBody.querySelector(".gpage");
+      if (np) {
+        np.style.transition = "none";
+        np.style.transform = `translateX(${dir > 0 ? ww : -ww}px)`; np.style.opacity = "0"; void np.offsetWidth;
+        np.style.transition = "transform .2s ease, opacity .2s ease";
+        np.style.transform = "translateX(0)"; np.style.opacity = "1";
+      }
+      setTimeout(() => { animating = false; }, 210);
+    }, 160);
+  }
+  gachaBody.addEventListener("touchstart", e => {
+    if (animating || e.touches.length !== 1 || !canSwipe()) { drag = false; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; w = gachaBody.offsetWidth || 320; drag = true;
   }, { passive: true });
-  el.addEventListener("touchend", e => {
-    if (x0 == null) return;
-    const tc = e.changedTouches[0], dx = tc.clientX - x0, dy = tc.clientY - y0; x0 = null;
-    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5 && Date.now() - t0 < 700) {
-      swipeGuardUntil = Date.now() + 350; onSwipe(dx < 0 ? 1 : -1);
-    }
+  gachaBody.addEventListener("touchmove", e => {
+    if (!drag) return;
+    const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
+    if (Math.abs(dy) > Math.abs(dx) + 6) { drag = false; snapBack(); return; } // вертикаль → скролл тела
+    const inProg = inProgressPage(), lockPage = inProg + 1;
+    const edge = (dx > 0 && gachaPage <= 0) || (dx < 0 && gachaPage >= lockPage);
+    const px = edge ? dx * 0.25 : dx; // сопротивление на краях
+    page.style.transition = "none";
+    page.style.transform = `translateX(${px}px)`;
+    page.style.opacity = String(Math.max(0.4, 1 - Math.abs(px) / w * 0.7));
   }, { passive: true });
-}
-// свайп по галерее = листание страниц девочек (как ◀▶); renderGacha сам клампит gachaPage
-attachSwipe(gachaBody, dir => {
-  if (rolling || gachaSummary || gachaGirl !== null) return;
-  gachaPage += dir; renderGacha();
-});
+  gachaBody.addEventListener("touchend", e => {
+    if (!drag) return; drag = false;
+    const dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 50) slide(dx < 0 ? 1 : -1); else snapBack();
+  }, { passive: true });
+})();
 gachaBody.addEventListener("click", e => {
   if (Date.now() < swipeGuardUntil) return; // только что свайпнули — не считать это тапом
   if (rolling || gachaSummary) return;
@@ -7052,6 +7071,12 @@ gachaBack.addEventListener("click", () => {
   gachaGirl = null; gachaLog.textContent = "";
   gachaOverlay.classList.remove("show");
   if (TUT.step === "gachaClose") tutGoto("expIntro");
+});
+// ‹ стрелка — из профиля девочки назад к странице коллекции (close по-прежнему закрывает окно)
+gachaBackArrow.addEventListener("click", () => {
+  if (rolling) return;
+  gachaGirl = null; gachaLog.textContent = "";
+  renderGacha();
 });
 // тап по окну гачи во время анимации (колеси/монтажа) — пропустить к результату (v13).
 // клики по тайлам/кнопкам гачи всплывают сюда (их обработчики выходят при rolling)
@@ -7176,6 +7201,7 @@ function runRoll(burstEmoji, burstEl) {
     gachaSkipFn = null; clearGachaTimers();
     gachaGirl = g; renderGacha();
     revealCard(g, c, gachaBody.querySelectorAll(".gcard")[c]);
+    prefetchFull([{ g, c }]); // дозагрузить full выигранной карты для мгновенного просмотра
   };
   gachaSkipFn = finish; // тап по окну гачи промотает к результату
   const tiles = [...gachaBody.querySelectorAll(".girl")];
@@ -7250,6 +7276,7 @@ function runMulti(k) {
   }
   gachaPage = inProgressPage();
   save();
+  prefetchFull(sum.newCards); // дозагрузить full выигранных карт для мгновенного просмотра
   // монтаж: золотая рамка строчит по девочкам с ускорением, бёрсты по пути,
   // финальный удар (фанфара+конфетти+тряска) — и итоговое окно
   const tiles = [...gachaBody.querySelectorAll(".girl")];
