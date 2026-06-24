@@ -4780,7 +4780,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.44 · 2026-06-24 · Гача-арт: префетч выигранной девочки во время ролла + lazy/async на сетках; R2 Cache-Control (эдж+браузер кэш) — лечим залипание на медленной сети (RU/VPN)";
+const BUILD = "Hoshikuzu v22.45 · 2026-06-24 · Гача-арт: аватарки коллекции без lazy/async (мигали на перерисовке); префетч+кэш как в v22.44";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -6788,7 +6788,7 @@ function renderGacha() {
         const owned = S.cards[i].filter(n => n > 0).length;
         // портрет появляется только с первой полученной картой набора; до этого — «❓»
         const ava = hasArt(i)
-          ? (owned > 0 ? `<img class="gavaImg" src="${avatarSrc(i)}" alt="" loading="lazy" decoding="async">` : `<div class="gph">❓</div>`)
+          ? (owned > 0 ? `<img class="gavaImg" src="${avatarSrc(i)}" alt="">` : `<div class="gph">❓</div>`)
           : `<div class="gava">${gd.ava}</div>`;
         return `<div class="girl${S.plat[i] ? " done" : ""}${girlHasNew(i) ? " new" : ""}" data-g="${i}">
           <div class="gavaWrap">${ava}</div>
