@@ -4780,7 +4780,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.43 · 2026-06-24 · Кубики: блюр только в фазе вращения; удар об стол (импакт/сквош) — уже крисп, переход маскируется движением";
+const BUILD = "Hoshikuzu v22.44 · 2026-06-24 · Гача-арт: префетч выигранной девочки во время ролла + lazy/async на сетках; R2 Cache-Control (эдж+браузер кэш) — лечим залипание на медленной сети (RU/VPN)";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -6700,6 +6700,15 @@ function prefetchFull(list) {
   list.forEach(({ g, c }) => { const im = new Image(); im.src = fullSrc(g, c); _prefetched.push(im); });
   if (_prefetched.length > 60) _prefetched.splice(0, _prefetched.length - 60); // не копим бесконечно
 }
+// исход ролла известен заранее → во время анимации колеса тянем арт выигранной
+// девочки (аватар + 9 превью) в кэш браузера, чтобы reveal/открытие её страницы
+// не «залипали» на медленной сети (RU/VPN, Cloudflare-троттлинг).
+function prefetchGirl(g) {
+  if (!hasArt(g)) return;
+  const a = new Image(); a.src = avatarSrc(g); _prefetched.push(a);
+  for (let c = 0; c < 9; c++) { const p = new Image(); p.src = previewSrc(g, c); _prefetched.push(p); }
+  if (_prefetched.length > 60) _prefetched.splice(0, _prefetched.length - 60);
+}
 
 const gachaOverlay = document.getElementById("gachaOverlay");
 const gachaTitle = document.getElementById("gachaTitle"), gachaBody = document.getElementById("gachaBody");
@@ -6779,7 +6788,7 @@ function renderGacha() {
         const owned = S.cards[i].filter(n => n > 0).length;
         // портрет появляется только с первой полученной картой набора; до этого — «❓»
         const ava = hasArt(i)
-          ? (owned > 0 ? `<img class="gavaImg" src="${avatarSrc(i)}" alt="">` : `<div class="gph">❓</div>`)
+          ? (owned > 0 ? `<img class="gavaImg" src="${avatarSrc(i)}" alt="" loading="lazy" decoding="async">` : `<div class="gph">❓</div>`)
           : `<div class="gava">${gd.ava}</div>`;
         return `<div class="girl${S.plat[i] ? " done" : ""}${girlHasNew(i) ? " new" : ""}" data-g="${i}">
           <div class="gavaWrap">${ava}</div>
@@ -6814,7 +6823,7 @@ function renderGacha() {
       const cnt = S.cards[i][c];
       html += cnt > 0
         ? `<div class="gcard own${S.cSeen[i][c] ? "" : " new"}" data-c="${c}">${hasArt(i)
-            ? `<div class="cardframe gold"><img class="gcardImg" src="${previewSrc(i, c)}" alt=""></div>`
+            ? `<div class="cardframe gold"><img class="gcardImg" src="${previewSrc(i, c)}" alt="" loading="lazy" decoding="async"></div>`
             : `<div class="ce">${cardEmoji(i, c)}</div>`}</div>`
         : `<div class="gcard no"><div class="gph">❓</div></div>`;
     }
@@ -6843,7 +6852,7 @@ function renderGachaSummary() {
   if (s.newCards.length) {
     const cards = s.newCards.map(({ g, c }, i) =>
       `<div class="galcard" data-i="${i}">${hasArt(g)
-        ? `<div class="cardframe gold"><img class="galcardImg" src="${previewSrc(g, c)}" alt=""></div>`
+        ? `<div class="cardframe gold"><img class="galcardImg" src="${previewSrc(g, c)}" alt="" loading="lazy" decoding="async"></div>`
         : `<div class="ce">${cardEmoji(g, c)}</div>`}
         <div class="cardname">${girl(g).name}</div></div>`).join("");
     html += `<div class="galwrap"><div class="galstrip" id="galStrip">${cards}</div></div>`;
@@ -7232,6 +7241,7 @@ function runRoll(burstEmoji, burstEl) {
   // pos — позиция девочки на странице (0..8), g — её глобальный индекс
   const pos = Math.floor(Math.random() * 9), c = Math.floor(Math.random() * 9);
   const g = page * 9 + pos;
+  prefetchGirl(g); // окно анимации — заранее качаем арт выигранной девочки (исход уже известен)
   // финал ролла — мгновенно открыть карточку (вызывается колесой ИЛИ пропуском тапом)
   let finished = false;
   const finish = () => {
