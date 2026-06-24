@@ -1367,7 +1367,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.35 · 2026-06-24 · ad cascade Telega→Monetag (Adsgram OFF until block 36038 approved) — kills 'block not active' popup";
+const BUILD = "Hoshikuzu v22.36 · 2026-06-24 · Adsgram back as primary (ON) for moderation → Monetag → Telega";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -1733,11 +1733,11 @@ initAdsgram();
 // Вне Adsgram (десктоп / BLOCK_ID не проставлен / SDK не загрузился) — мгновенная
 // выдача через reward() (тест-режим, как было до подключения). На этапе 1 это ок:
 // реальных денег у игрока нет (ads.md §2). К этапу 2 — серверный postback.
-// ⚠️ ADSGRAM_ON: блок 36038 на МОДЕРАЦИИ («Создано», не активен). Пока false — Adsgram НЕ
-// зовём: его SDK при неактивном блоке показывает нативный Telegram-попап «block not active»
-// (его наш фильтр ошибок не глушит — это чужой UI) и вешает промис, не пуская каскад дальше.
-// ПОСЛЕ аппрува блока в кабинете Adsgram → поставить true. (v22.35)
-const ADSGRAM_ON = false;
+// ADSGRAM_ON=true: Adsgram снова ОСНОВНОЙ (запрос автора, v22.36). Блок 36038 на модерации —
+// чтобы Adsgram его аппрувнул, приложение должно реально ЗВАТЬ блок (ревьюер видит интеграцию).
+// ⚠️ пока блок не активен, SDK Adsgram может показывать нативный попап «block not active» —
+// это цена прохождения модерации; уйдёт после аппрува. Каскад при no-fill идёт к Monetag/Telega.
+const ADSGRAM_ON = true;
 const MONETAG_ZONE = "11193024";
 const TELEGA_TOKEN = "3fe4fac1-3570-4c93-9760-843be73322c1";
 const TELEGA_BLOCK = "ea9f856a-e564-4118-bcf0-92d1dbbcae4f";
@@ -1771,14 +1771,14 @@ function tryAdsgram(reward, next) {
   try { adController.show().then(() => reward()).catch(() => next()); }
   catch (e) { next(); }
 }
-// Каскад (ads.md §2): приоритет Telega (Active) → Monetag → Adsgram (когда аппрувнут) → fail.
+// Каскад (ads.md §2): приоритет Adsgram (основной, на модерации) → Monetag → Telega → fail.
 // Награда — ТОЛЬКО при успешном показе. Если ни один SDK не загружен (десктоп/вне TG) — нет
 // смысла в каскаде, сразу тест-выдача reward() (как было до подключения; этап 1, ads.md).
 function showAd(reward, fail) {
   const monetagFn = window["show_" + MONETAG_ZONE];
-  const adsAvailable = telegaAds || (typeof monetagFn === "function") || (ADSGRAM_ON && adController);
+  const adsAvailable = (ADSGRAM_ON && adController) || (typeof monetagFn === "function") || telegaAds;
   if (!adsAvailable) { reward(); return; }                 // ни одной сети (десктоп) → тест-выдача
-  tryTelega(reward, () => tryMonetag(reward, () => tryAdsgram(reward, () => { if (fail) fail(); })));
+  tryAdsgram(reward, () => tryMonetag(reward, () => tryTelega(reward, () => { if (fail) fail(); })));
 }
 
 /* ═══════════ Telegram Stars — оплата вместо рекламы (monetization.md, stars.md) ═══════════ */
