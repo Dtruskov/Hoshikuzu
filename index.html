@@ -4444,6 +4444,9 @@
         <div class="setLbl">Effects</div>
         <div id="setGfx" class="setSeg"></div>
         <div class="setSub" id="setGfxSub"></div>
+        <div class="setLbl">Dice quality</div>
+        <div id="setQuality" class="setSeg"></div>
+        <div class="setSub" id="setQualitySub"></div>
         <div class="setRow"><span>🔊 Sound</span><button id="setSnd" class="setToggle"></button></div>
         <div class="setRow"><span>📳 Vibration</span><button id="setVib" class="setToggle"></button></div>
         <div class="setVer" id="setVer"></div>
@@ -4777,7 +4780,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.40 · 2026-06-24 · Гача: имя в профиле девочки отцентрировано (фикс)";
+const BUILD = "Hoshikuzu v22.41 · 2026-06-24 · Перф: дефолт Spark (слабым Pure), FPS-автодетект→Pure · кубики: матрица 1×/кадр, грани без клиппинга, шкала Quality 1–5 + моушн-блюр";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -4852,9 +4855,36 @@ function gfxInitTier() {
   const v = lsGet(GFX_KEY);
   if (v != null) { const n = +v; if (n >= 0 && n <= 4) return n; }
   const dm = navigator.deviceMemory || 0, hc = navigator.hardwareConcurrency || 0;
-  return ((dm && dm <= 2) || (hc && hc <= 4)) ? 1 : 3; // слабое железо → старт «Spark», иначе «Stardust» (не макс — бережём середняки); FPS-автодетект ещё понизит
+  // ДЕФОЛТ — «Spark» на всех (запрос автора v22.41: бережём перф); совсем слабое железо → «Pure».
+  // Остальные тиры (Glow/Stardust/Cosmos) — только ручным выбором в настройках. FPS-автодетект
+  // ещё понизит Spark→Pure, если лагает в момент выигрыша.
+  return ((dm && dm <= 2) || (hc && hc <= 2)) ? 0 : 1;
 }
 let gfxTier = gfxInitTier();
+const gfxAuto = lsGet(GFX_KEY) == null; // тир НЕ выбран игроком → можно авто-понижать по FPS
+
+// ── Quality: отдельная шкала качества РЕНДЕРА КУБИКОВ (1..5), независима от тира эффектов
+// (запрос автора v22.41). 5 — крисп (полный DPR, «как раньше»), 1 — минимум. Низкое качество =
+// низкое разрешение буфера → браузер растягивает его со сглаживанием: дешевле + «моушн-блюр».
+const DQ_KEY = "hoshikuzu_dquality";
+const DQ_DPR = [0, 0.5, 0.75, 1, 1.5, 2];      // индекс = Quality (1..5) → DPR буфера костей в покое
+const DQ_SUB = ["", "lowest · blurry, fastest", "low", "balanced", "high", "max · crisp"];
+function dqInit() {
+  const v = lsGet(DQ_KEY); if (v != null) { const n = +v; if (n >= 1 && n <= 5) return n; }
+  const dm = navigator.deviceMemory || 0, hc = navigator.hardwareConcurrency || 0;
+  return ((dm && dm <= 2) || (hc && hc <= 2)) ? 1 : 3; // слабые → Q1, остальные → Q3 (dpr 1)
+}
+let dQuality = dqInit();
+let diceMotion = false;                         // во время вращения буфер ещё ниже → блюр + перф
+function diceDpr() {
+  let d = Math.min(DQ_DPR[dQuality] || 1, window.devicePixelRatio || 1); // не выше реального экрана
+  if (diceMotion) d *= 0.7;                      // доп. размытие/удешевление в полёте (фейк моушн-блюра)
+  return Math.max(0.34, d);
+}
+function setDQuality(n) {
+  dQuality = Math.max(1, Math.min(5, n)); lsSet(DQ_KEY, dQuality);
+  diceMotion = false; diceResize();             // пересобрать буфер под новое качество (крисп-кадр)
+}
 let SND = lsGet(SND_KEY) !== "0";   // звук по умолчанию ВКЛ
 let VIB = lsGet(VIB_KEY) !== "0";   // вибрация по умолчанию ВКЛ
 let GFX_LOW, GFX_OFF, PFX;
@@ -4874,13 +4904,15 @@ function setGfx(low) { setGfxTier(low ? 1 : 3); } // back-compat: FPS-автод
 // тормозят (>32мс ≈ <30fps) на ~120 кадрах выборки — переключаемся в LOW и запоминаем
 let _gfxFrames = 0, _gfxSlow = 0, _gfxLastTs = 0, _gfxDecided = false;
 function gfxSample(now) {
-  if (_gfxDecided || GFX_LOW) { _gfxDecided = true; return; }
+  // авто-понижение ТОЛЬКО на дефолтном Spark (tier 1) и только если игрок сам тир не выбирал:
+  // на Pure ниже некуда, ручной выбор (в т.ч. Cosmos) — уважаем (v22.41)
+  if (_gfxDecided || !gfxAuto || gfxTier !== 1) { _gfxDecided = true; return; }
   if (_gfxLastTs) {
     const dt = now - _gfxLastTs;
     if (dt < 200) { // паузы между спинами не считаем за «тормоз»
       if (dt > 32) _gfxSlow++;
       if (++_gfxFrames >= 120) {
-        if (_gfxSlow / _gfxFrames > 0.35) setGfx(true);
+        if (_gfxSlow / _gfxFrames > 0.35) setGfxTier(0); // лагает на Spark → роняем в Pure
         _gfxDecided = true;
       }
     }
@@ -5309,16 +5341,12 @@ const dctx = diceCanvas.getContext("2d");
 let dcDpr = 1, dcW = 0, dcH = 0;
 // текстуры рисуются ОДИН раз ЛЕНИВО (первый бросок — много позже загрузки → шрифт эмодзи «тёплый»,
 // глиф не пустой; v21.4 падал именно из-за раннего запекания, см. диагностику v21.4.2)
-let _faceTex = null;
-function faceTex() {
-  if (_faceTex) return _faceTex;
-  const S = 96, c = document.createElement("canvas"); c.width = c.height = S;
-  const x = c.getContext("2d");
-  const g = x.createLinearGradient(0, 0, S, S);
-  g.addColorStop(0, "#fffdf5"); g.addColorStop(.55, "#efe7cf"); g.addColorStop(1, "#d3c7a6");
-  x.fillStyle = g; x.fillRect(0, 0, S, S);
-  x.lineWidth = 4; x.strokeStyle = "rgba(150,128,80,.5)"; x.strokeRect(2, 2, S - 4, S - 4);
-  _faceTex = c; return c;
+// фон грани = плоская заливка спроецированного полигона с лёгким затенением по глубине нормали
+// (v22.41 заменили клиппнутую текстуру-градиент: клиппинг — самый дорогой вызов на мобильном canvas)
+const _faceBase = [239, 231, 207]; // «слоновая кость» (#efe7cf)
+function faceShade(nz) {
+  const k = 0.8 + 0.2 * (nz < 1 ? nz : 1); // грань к камере светлее, боковая темнее → объём
+  return "rgb(" + ((_faceBase[0] * k) | 0) + "," + ((_faceBase[1] * k) | 0) + "," + ((_faceBase[2] * k) | 0) + ")";
 }
 const _symTex = new Map();
 function symTex(emoji) {
@@ -5358,7 +5386,7 @@ function diceResize() {
   const board = document.getElementById("board");
   const bw = board.clientWidth, bh = board.clientHeight;
   if (bw < 1 || bh < 1) return; // неготовый бокс — НЕ трогаем (иначе кости пропадают)
-  dcDpr = Math.min(2, window.devicePixelRatio || 1);
+  dcDpr = diceDpr(); // разрешение буфера по шкале Quality (+ доп. блюр в движении)
   dcW = bw; dcH = bh + 140;
   diceCanvas.style.width = dcW + "px"; diceCanvas.style.height = dcH + "px"; // ЯВНЫЙ CSS-размер (replaced)
   const pw = Math.round(dcW * dcDpr), ph = Math.round(dcH * dcDpr);
@@ -5372,51 +5400,33 @@ function diceResize() {
 // куб: 8 вершин (±1) и 6 граней [TL,TR,BR,BL, нормаль, индекс символа]; нормаль → backface-cull
 const CUBE_V = [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]];
 const CUBE_F = [[4, 5, 6, 7, [0, 0, 1], 0], [1, 0, 3, 2, [0, 0, -1], 1], [5, 1, 2, 6, [1, 0, 0], 2], [0, 4, 7, 3, [-1, 0, 0], 3], [0, 1, 5, 4, [0, -1, 0], 4], [7, 6, 2, 3, [0, 1, 0], 5]];
-function rot3(p, rx, ry, rz) {
-  let x = p[0], y = p[1], z = p[2], c, s;
-  c = Math.cos(rz); s = Math.sin(rz); [x, y] = [x * c - y * s, x * s + y * c];
-  c = Math.cos(rx); s = Math.sin(rx); [y, z] = [y * c - z * s, y * s + z * c];
-  c = Math.cos(ry); s = Math.sin(ry); [x, z] = [x * c + z * s, -x * s + z * c];
-  return [x, y, z];
-}
-// fake-3D куб с центром (cx,cy), полуребро h, углы (рад), пост-скейл сквоша sclX/sclY, символы граней
+// fake-3D куб с центром (cx,cy), полуребро h, углы (рад), пост-скейл сквоша sclX/sclY, символы граней.
+// v22.41 перф: матрицу вращения считаем ОДИН раз за кадр (3 sin+3 cos), а не sin/cos на каждую из
+// 8 вершин и 6 нормалей; фон грани — заливка спроецированного полигона (без клиппинга/текстуры).
 function drawCube(cx, cy, h, rx, ry, rz, sclX, sclY, faceSyms) {
   const D = 380; // та же перспектива, что CSS perspective:380px
+  // та же последовательность поворотов, что была в rot3: Rz → Rx → Ry (cos/sin — один раз)
+  const cz = Math.cos(rz), sz = Math.sin(rz), cx2 = Math.cos(rx), sx2 = Math.sin(rx), cy2 = Math.cos(ry), sy2 = Math.sin(ry);
+  function rot(x, y, z) {
+    let t = x * cz - y * sz; y = x * sz + y * cz; x = t; // Rz
+    t = y * cx2 - z * sx2; z = y * sx2 + z * cx2; y = t; // Rx
+    t = x * cy2 + z * sy2; z = -x * sy2 + z * cy2; x = t; // Ry
+    return [x, y, z];
+  }
   const proj = CUBE_V.map(v => {
-    const p = rot3([v[0] * h, v[1] * h, v[2] * h], rx, ry, rz);
+    const p = rot(v[0] * h, v[1] * h, v[2] * h);
     const sc = D / (D - p[2]);
     return [cx + p[0] * sc * sclX, cy + p[1] * sc * sclY, p[2]];
   });
-  const ft = faceTex();
-  // текстура половины грани (треугольник) с перспективно-верным маппингом по 3 экранным углам:
-  // локальные P0..P2 (квадрат [-h,h]²) → экранные Q0..Q2. Грань = 2 таких треугольника по всем
-  // 4 НАСТОЯЩИМ углам → соседние грани делят общие вершины и стыкуются БЕЗ щелей (был аффин
-  // по 3 углам: 4-й «фейк» расходился с соседом → дыры при вращении)
-  function blitTex(Q0, Q1, Q2, P0, P1, P2) {
-    const ux = P1[0] - P0[0], uy = P1[1] - P0[1], vx = P2[0] - P0[0], vy = P2[1] - P0[1];
-    const det = ux * vy - uy * vx; if (!det) return;
-    const Ux = Q1[0] - Q0[0], Uy = Q1[1] - Q0[1], Vx = Q2[0] - Q0[0], Vy = Q2[1] - Q0[1];
-    const a = (Ux * vy - uy * Vx) / det, c = (ux * Vx - Ux * vx) / det;
-    const b = (Uy * vy - uy * Vy) / det, d = (ux * Vy - Uy * vx) / det;
-    dctx.save();
-    dctx.transform(a, b, c, d, Q0[0] - a * P0[0] - c * P0[1], Q0[1] - b * P0[0] - d * P0[1]);
-    // клип-треугольник чуть раздут от центроида (k=1.03) → нет AA-волоска по общей диагонали
-    const gx = (P0[0] + P1[0] + P2[0]) / 3, gy = (P0[1] + P1[1] + P2[1]) / 3, k = 1.03;
-    dctx.beginPath();
-    dctx.moveTo(gx + (P0[0] - gx) * k, gy + (P0[1] - gy) * k);
-    dctx.lineTo(gx + (P1[0] - gx) * k, gy + (P1[1] - gy) * k);
-    dctx.lineTo(gx + (P2[0] - gx) * k, gy + (P2[1] - gy) * k);
-    dctx.closePath(); dctx.clip();
-    dctx.drawImage(ft, -h, -h, 2 * h, 2 * h);
-    dctx.restore();
-  }
-  const TL = [-h, -h], TR = [h, -h], BR = [h, h], BL = [-h, h];
   for (const f of CUBE_F) {
-    const n = rot3(f[4], rx, ry, rz);
+    const n = rot(f[4][0], f[4][1], f[4][2]);
     if (n[2] <= 0.02) continue; // грань смотрит от камеры → пропуск (видно ровно 3)
     const A = proj[f[0]], B = proj[f[1]], C = proj[f[2]], Dd = proj[f[3]];
-    blitTex(A, B, Dd, TL, TR, BL); // треугольник TL-TR-BL
-    blitTex(B, C, Dd, TR, BR, BL); // треугольник TR-BR-BL → вместе вся грань по 4 углам
+    // фон грани — заливка полигона по 4 спроецированным углам + кант (вместо 2 клиппнутых текстур)
+    dctx.beginPath();
+    dctx.moveTo(A[0], A[1]); dctx.lineTo(B[0], B[1]); dctx.lineTo(C[0], C[1]); dctx.lineTo(Dd[0], Dd[1]); dctx.closePath();
+    dctx.fillStyle = faceShade(n[2]); dctx.fill();
+    dctx.lineWidth = 1; dctx.strokeStyle = "rgba(150,128,80,.5)"; dctx.stroke();
     // символ — одним аффином по центру (искажение в центре ≈0; кусочно-аффинный дал бы излом)
     const sym = faceSyms[f[5]];
     if (sym) {
@@ -5469,9 +5479,14 @@ function diceDrawAll() {
 let diceRAF = null;
 function diceLoop() {
   diceDrawAll();
-  diceRAF = reels.some(rl => rl.anim) ? requestAnimationFrame(diceLoop) : null; // стоп в покое (последний кадр держится)
+  if (reels.some(rl => rl.anim)) { diceRAF = requestAnimationFrame(diceLoop); return; }
+  diceRAF = null; // стоп в покое (последний кадр держится)
+  if (diceMotion) { diceMotion = false; diceResize(); diceDrawAll(); } // приземлились → крисп-кадр
 }
-function diceStart() { if (!diceRAF) diceRAF = requestAnimationFrame(diceLoop); }
+function diceStart() {
+  if (!diceMotion) { diceMotion = true; diceResize(); } // буфер в «моушн»-разрешение (блюр + перф)
+  if (!diceRAF) diceRAF = requestAnimationFrame(diceLoop);
+}
 // engA ставим ПЕРВЫМ — иначе канвас ещё display:none и замер даёт 0 (кости пропадают)
 document.body.classList.toggle("engA", DICE_CANVAS);
 window.addEventListener("resize", diceResize);
@@ -5485,7 +5500,7 @@ if (typeof tg !== "undefined" && tg && tg.onEvent) tg.onEvent("viewportChanged",
 function diceInit() {
   diceResize();
   if (document.fonts && document.fonts.ready)
-    document.fonts.ready.then(() => { _symTex.clear(); _faceTex = null; if (DICE_CANVAS) diceResize(); });
+    document.fonts.ready.then(() => { _symTex.clear(); if (DICE_CANVAS) diceResize(); });
 }
 requestAnimationFrame(diceInit);
 
@@ -6582,6 +6597,9 @@ function renderSettings() {
   document.getElementById("setGfx").innerHTML =
     GFX_TIERS.map((t, i) => `<button data-gfx="${i}" class="${i === gfxTier ? "on" : ""}">${t.name}</button>`).join("");
   document.getElementById("setGfxSub").textContent = GFX_TIERS[gfxTier].sub;
+  document.getElementById("setQuality").innerHTML =
+    [1, 2, 3, 4, 5].map(q => `<button data-dq="${q}" class="${q === dQuality ? "on" : ""}">${q}</button>`).join("");
+  document.getElementById("setQualitySub").textContent = DQ_SUB[dQuality];
   const sb = document.getElementById("setSnd"); sb.textContent = SND ? "On" : "Off"; sb.className = "setToggle " + (SND ? "on" : "off");
   const vb = document.getElementById("setVib"); vb.textContent = VIB ? "On" : "Off"; vb.className = "setToggle " + (VIB ? "on" : "off");
   document.getElementById("setVer").textContent = (BUILD.match(/v[\d.]+/) || ["?"])[0];
@@ -6592,6 +6610,10 @@ setOverlay.addEventListener("click", e => { if (e.target === setOverlay) setOver
 document.getElementById("setGfx").addEventListener("click", e => {
   const b = e.target.closest("[data-gfx]"); if (!b) return;
   setGfxTier(+b.dataset.gfx); renderSettings();
+});
+document.getElementById("setQuality").addEventListener("click", e => {
+  const b = e.target.closest("[data-dq]"); if (!b) return;
+  setDQuality(+b.dataset.dq); renderSettings();
 });
 document.getElementById("setSnd").addEventListener("click", () => { SND = !SND; lsSet(SND_KEY, SND ? "1" : "0"); if (SND) ac(); renderSettings(); });
 document.getElementById("setVib").addEventListener("click", () => { VIB = !VIB; lsSet(VIB_KEY, VIB ? "1" : "0"); if (VIB) vibrate(15); renderSettings(); });
