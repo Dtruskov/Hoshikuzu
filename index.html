@@ -4780,7 +4780,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.42 · 2026-06-24 · Кубики: статика всегда крисп (≥ур.3), Quality рулит силой моушн-блюра (Q1 — макс. смаз)";
+const BUILD = "Hoshikuzu v22.43 · 2026-06-24 · Кубики: блюр только в фазе вращения; удар об стол (импакт/сквош) — уже крисп, переход маскируется движением";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -5482,9 +5482,17 @@ function diceDrawAll() {
 let diceRAF = null;
 function diceLoop() {
   diceDrawAll();
+  // блюр ТОЛЬКО пока кость ВРАЩАЕТСЯ в воздухе (t < spinFrac). Фазу удара об стол (сквош/отскок —
+  // грани уже не крутятся) рисуем криспово ≥ур.3: переход blur→crisp случается, пока куб ещё
+  // движется (импакт), и маскируется им — а не «щёлкает» в покое (v22.43)
+  if (diceMotion) {
+    const now = performance.now();
+    const spinning = reels.some(r => r.anim && now - r.anim.t0 < r.anim.dur * r.anim.spinFrac);
+    if (!spinning) { diceMotion = false; diceResize(); } // вращение кончилось → крисп для импакта/покоя
+  }
   if (reels.some(rl => rl.anim)) { diceRAF = requestAnimationFrame(diceLoop); return; }
   diceRAF = null; // стоп в покое (последний кадр держится)
-  if (diceMotion) { diceMotion = false; diceResize(); diceDrawAll(); } // приземлились → крисп-кадр
+  if (diceMotion) { diceMotion = false; diceResize(); diceDrawAll(); } // подстраховка
 }
 function diceStart() {
   if (!diceMotion) { diceMotion = true; diceResize(); } // буфер в «моушн»-разрешение (блюр + перф)
