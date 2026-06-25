@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!-- ранний коннект к CDN арта — меньше таймаутов на TLS-рукопожатии на медленных RU/VPN сетях -->
+<link rel="preconnect" href="https://cdn.hoshikuzu.ru">
+<link rel="dns-prefetch" href="https://cdn.hoshikuzu.ru">
 <title>Hoshikuzu</title>
 <!-- Telegram WebApp SDK ЗАИНЛАЙНЕН (v22.37, 2026-06-24) — H1-фикс из poco-load-research.md.
      Было: <script src="https://telegram.org/js/telegram-web-app.js"> — БЛОКИРУЮЩИЙ внешний скрипт.
@@ -4780,7 +4783,7 @@ const girl = gi => {
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
 // версия билда — мелким текстом в футере (см. разметку футера)
-const BUILD = "Hoshikuzu v22.45 · 2026-06-24 · Гача-арт: аватарки коллекции без lazy/async (мигали на перерисовке); префетч+кэш как в v22.44";
+const BUILD = "Hoshikuzu v22.46 · 2026-06-25 · Гача-арт: авто-ретрай битых картинок на медленных RU/VPN сетях (capture-onerror, до 4 попыток, #-rebust) + preconnect к CDN";
 // бонус — символ 💎 на барабанах: независимый ролл на каждый спин. ~0.015 →
 // 1 из ~67 спинов ≈ 3 мин ручной игры (быстрее на турбо = больше рекламы). balance.md §8
 const BONUS_P = 0.015;
@@ -6709,6 +6712,23 @@ function prefetchGirl(g) {
   for (let c = 0; c < 9; c++) { const p = new Image(); p.src = previewSrc(g, c); _prefetched.push(p); }
   if (_prefetched.length > 60) _prefetched.splice(0, _prefetched.length - 60);
 }
+
+// арт R2 на троттлящихся/медленных сетях (RU/VPN, Cloudflare) иногда не догружается с первого
+// раза — без ретрая <img> остаётся битым НАВСЕГДА (отсюда «у многих не грузятся картинки»).
+// Картинки рисуются строками в innerHTML, поэтому ловим ошибку загрузки централизованно в фазе
+// capture (resource-error НЕ всплывает → обычный bubble-листенер 4636 его не видит) и
+// перезапрашиваем тот же объект R2 (меняем только #-фрагмент: на сервер не уходит, Cloudflare-кэш
+// тот же, но элемент считает src новым и делает повторный запрос). До 4 попыток с backoff.
+window.addEventListener("error", function (e) {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  if (img.src.indexOf(GACHA_ART_BASE) !== 0) return;
+  const tries = (img.__tries || 0) + 1;
+  if (tries > 4) return;
+  img.__tries = tries;
+  const base = img.src.split("#")[0];
+  setTimeout(() => { img.src = base + "#r" + tries; }, 400 * tries);
+}, true);
 
 const gachaOverlay = document.getElementById("gachaOverlay");
 const gachaTitle = document.getElementById("gachaTitle"), gachaBody = document.getElementById("gachaBody");
