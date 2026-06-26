@@ -4256,6 +4256,21 @@
     50% { box-shadow: 0 0 16px #ffd34d; filter: brightness(1.3); }
   }
 
+  /* ── значок-уведомление в стиле нативного Telegram: красная пилюля с белой цифрой
+     в правом верхнем углу кнопки. Живой счётчик (см. setBadge), pointer-events:none —
+     тап проходит на саму кнопку. Инсет (не вынос за край) — чтобы не обрезался у кнопок
+     с overflow:hidden (#upgBtn) и у плиток галереи (.girl). ── */
+  #collBtn, #wheelBtn, #trackBtn, #gachaRoll, #rltSpin, .girl, .gcard { position: relative; }
+  .nbadge {
+    position: absolute; top: 3px; right: 3px; z-index: 4;
+    min-width: 18px; height: 18px; box-sizing: border-box; padding: 0 5px;
+    border-radius: 9px; background: #fc3b3f; color: #fff;
+    font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 1px 3px rgba(0,0,0,.45), 0 0 0 1.5px rgba(11,10,22,.5);
+    pointer-events: none;
+  }
+
   /* ── итоговое окно мульти-ролла ── */
   .sumrow {
     background: #2e1c52; border-radius: 10px; padding: 8px 10px;
@@ -4779,6 +4794,17 @@ const girl = gi => {
   return { name: tier ? base + " " + (ROMAN[tier] || (tier + 1)) : base,
            ava: GIRL_AVAS[gi % GIRL_AVAS.length] };
 };
+
+// значок-уведомление на кнопке: создаёт/обновляет .nbadge как последнего ребёнка el,
+// убирает при n<=0. Зовётся ПОСЛЕ установки текста кнопки (textContent затирает детей).
+function setBadge(el, n) {
+  if (!el) return;
+  let b = el.querySelector(":scope > .nbadge");
+  if (n > 0) {
+    if (!b) { b = document.createElement("span"); b.className = "nbadge"; el.appendChild(b); }
+    b.textContent = n > 99 ? "99+" : n;
+  } else if (b) b.remove();
+}
 
 /* ═══════════ состояние ═══════════ */
 const SAVE_V = 21; // v21: большой TRACK (~64 ступени, частые autospeed +0.2 до ×4, wild/mult-награды) + расширенные имена (перестановка tier'ов → бамп вайпает демо-сейвы)
@@ -6298,6 +6324,7 @@ function updateWheel() {
   else if (S.harda >= cost) { rltSpinBtn.textContent = `BUY TICKET & SPIN · ${fmt(cost)} 🪙`; rltSpinBtn.disabled = rltSpinning; }
   else { rltSpinBtn.textContent = `need 🎟️ or 🪙 ${fmt(cost)}`; rltSpinBtn.disabled = true; }
   rltSpinBtn.classList.toggle("blink", !rltSpinning && (S.tickets >= 1 || S.harda >= cost));
+  setBadge(rltSpinBtn, S.tickets); // бейдж = готовые билеты (после textContent — он затирает детей)
   // крутить всё: свои билеты + докупка на всю харду
   const buy = Math.min(MULTI_MAX, Math.floor(S.harda / cost));
   const k = Math.min(MULTI_MAX, S.tickets + buy);
@@ -6656,14 +6683,6 @@ const dupeExp = () => Math.round(DUPE_EXP * global() * platMult() * tempMult());
 // как дубль, но скромнее. Первый просмотр девочки/карты — разовый, отмечается в gSeen/cSeen
 const VIEW_EXP = 120;
 const viewExp = () => Math.round(VIEW_EXP * global() * platMult() * tempMult());
-// у девочки есть «новое» (неполученный view-опыт): не открывали её ИЛИ есть открытая,
-// но не просмотренная в полный размер карта. ensureGirl(gi) должен быть вызван заранее
-function girlHasNew(gi) {
-  // рамка «new» — ТОЛЬКО у девочки с выигранной, но ещё не просмотренной картой (запрос автора):
-  // пустые ❓-девочки (0 карт) не светятся и наградными не считаются. Выиграл и скипнул → рамка есть.
-  for (let c = 0; c < 9; c++) if (S.cards[gi][c] > 0 && !S.cSeen[gi][c]) return true;
-  return false;
-}
 // эмодзи карточек — детерминированные «рандомные»: внутри девочки не повторяются
 const CARD_EMOJI = ["🌸","🍓","🎀","🍰","💄","🌙","💎","🍷","🧁","🌺","🎶","🍒",
   "💋","🦋","🌊","🔥","🍑","✨","🎧","🍭","🌈","🍾","💌","🌹","🍫","🎵","🪞","👠",
@@ -6810,7 +6829,10 @@ function renderGacha() {
         const ava = hasArt(i)
           ? (owned > 0 ? `<img class="gavaImg" src="${avatarSrc(i)}" alt="">` : `<div class="gph">❓</div>`)
           : `<div class="gava">${gd.ava}</div>`;
-        return `<div class="girl${S.plat[i] ? " done" : ""}${girlHasNew(i) ? " new" : ""}" data-g="${i}">
+        // бейдж на аватарке = сколько карт выиграно, но ещё не просмотрено (неполученный view-опыт)
+        let nuw = 0; for (let c = 0; c < 9; c++) if (S.cards[i][c] > 0 && !S.cSeen[i][c]) nuw++;
+        return `<div class="girl${S.plat[i] ? " done" : ""}${nuw ? " new" : ""}" data-g="${i}">
+          ${nuw ? `<span class="nbadge">${nuw > 99 ? "99+" : nuw}</span>` : ""}
           <div class="gavaWrap">${ava}</div>
           <div class="ginfo"><div class="gname">${gd.name}</div>
           <div class="gprog">${S.plat[i] ? "⭐ 10/10" : owned + "/9"}</div></div></div>`;
@@ -6825,6 +6847,7 @@ function renderGacha() {
                             : k === 1 ? `ROLL · ${fmt(cost)} 🪙`
                             : `ROLL — ${fmt(cost)} 🪙`;
       gachaRoll.disabled = rolling || k < 1;
+      setBadge(gachaRoll, k); // бейдж = на сколько роллов хватает (после textContent)
       gachaRoll.classList.toggle("blink", !rolling && k >= 1);
       // не хватает даже на 1 ролл → 🎬 реклама или ⭐ звёзды дают ролл
       setGachaAd(!rolling && k < 1);
@@ -6842,7 +6865,7 @@ function renderGacha() {
     for (let c = 0; c < 9; c++) {
       const cnt = S.cards[i][c];
       html += cnt > 0
-        ? `<div class="gcard own${S.cSeen[i][c] ? "" : " new"}" data-c="${c}">${hasArt(i)
+        ? `<div class="gcard own${S.cSeen[i][c] ? "" : " new"}" data-c="${c}">${S.cSeen[i][c] ? "" : `<span class="nbadge">1</span>`}${hasArt(i)
             ? `<div class="cardframe gold"><img class="gcardImg" src="${previewSrc(i, c)}" alt="" loading="lazy" decoding="async"></div>`
             : `<div class="ce">${cardEmoji(i, c)}</div>`}</div>`
         : `<div class="gcard no"><div class="gph">❓</div></div>`;
@@ -8081,17 +8104,27 @@ function update() {
 
   throwBtn.classList.toggle("off", S.spins < 1); // кнопка броска тускнеет при пустой энергии (v20)
   // мигание «хватает на прокачку» / «хватает на ролл гачи»
-  document.getElementById("upgBtn").classList.toggle("blink",
-    S.upgCount < UPG_MAX && S.harda >= cost);
-  // на кнопке гачи — на сколько роллов сейчас хватает харды (v13.4)
+  const upgBtnEl = document.getElementById("upgBtn");
+  upgBtnEl.classList.toggle("blink", S.upgCount < UPG_MAX && S.harda >= cost);
+  // бейдж: сколько апгрейдов реально по карману прямо сейчас (цены растут по UPG_RATIO)
+  let upgAfford = 0, upgCoins = S.harda;
+  for (let lvl = S.upgCount; lvl < UPG_MAX; lvl++) {
+    const c = Math.round(UPG_BASE * global() * UPG_RATIO ** lvl);
+    if (upgCoins < c) break;
+    upgCoins -= c; upgAfford++;
+  }
+  setBadge(upgBtnEl, upgAfford);
+  // на кнопке гачи — на сколько роллов сейчас хватает харды (v13.4); число вынесено в бейдж
   const collBtn = document.getElementById("collBtn");
   const rollsAfford = Math.min(MULTI_MAX, Math.floor(S.harda / rollCost()));
-  collBtn.textContent = `Collection 💖 ×${rollsAfford}`;
+  collBtn.textContent = "Collection 💖";
+  setBadge(collBtn, rollsAfford);
   collBtn.classList.toggle("blink", S.harda >= rollCost());
   // Колеса экспы (v14): как гача — выигранные билеты + на сколько круток хватает харды
   const wheelBtn = document.getElementById("wheelBtn");
   const rltAfford = Math.min(MULTI_MAX, Math.floor(S.harda / ticketCost()));
   wheelBtn.innerHTML = `🎟️ Star Wheel<br><small>${S.tickets} 🎟️ · ×${rltAfford} for 🪙</small>`;
+  setBadge(wheelBtn, S.tickets); // бейдж = готовые билеты
   wheelBtn.classList.toggle("blink", S.tickets > 0 || S.harda >= ticketCost());
   // окно колеси открыто — обновить (харда капает автоспином/регеном)
   if (wheelOverlay.classList.contains("show") && !rltSpinning) updateWheel();
@@ -8105,8 +8138,9 @@ function update() {
   trackBtn.querySelector("small").textContent = nx
     ? `Next: ${nx.ic} ${Math.max(0, Math.min(S.track.xp, nx.cost) - prevCost)}/${nx.cost - prevCost}`
     : "All unlocked 🏆";
-  const claimable = (S.daily.tasks || []).some(t => t.done && !t.claimed);
-  trackBtn.classList.toggle("blink", claimable);
+  const claimCount = (S.daily.tasks || []).filter(t => t.done && !t.claimed).length;
+  trackBtn.classList.toggle("blink", claimCount > 0);
+  setBadge(trackBtn, claimCount); // бейдж = сколько целей можно забрать
   if (trackOverlay.classList.contains("show")) renderTrack();
   // гача открыта на галерее — обновить кнопки роллов (харда капает и автоспином)
   if (gachaOverlay.classList.contains("show") && !rolling && gachaGirl === null && !gachaSummary)
